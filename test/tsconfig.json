@@ -1,0 +1,7 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node", "vitest/globals", "vitest/importMeta"],
+  },
+  "include": ["env.d.ts", "./**/*.ts", "../src/**/*.test.ts"]
+}

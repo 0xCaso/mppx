@@ -4,7 +4,7 @@
     "changeset:publish": "zile publish:prepare && changeset publish && zile publish:post",
     "changeset:version": "changeset version",
     "check": "biome check --fix --unsafe",
-    "check:types": "tsc",
+    "check:types": "tsc -p src && tsc -p test",
     "dev": "zile dev",
     "test": "vitest"
   },
@@ -12,20 +12,41 @@
     "@biomejs/biome": "latest",
     "@changesets/cli": "latest",
     "@types/node": "latest",
+    "prool": "^0.2.2",
+    "testcontainers": "^11.11.0",
     "typescript": "latest",
+    "viem": "^2.44.2",
     "vitest": "latest",
-    "zile": "latest"
+    "zile": "latest",
+    "zod": "^4.3.5"
   },
   "packageManager": "pnpm@10.28.0",
   "[!start-pkg]": "",
   "name": "mpay",
   "type": "module",
   "version": "0.0.0",
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
   "license": "MIT",
   "files": [
     "dist",
     "src"
   ],
-  "dependencies": {}
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "src": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "src": "./src/server/index.ts",
+      "default": "./dist/server/index.js"
+    }
+  },
+  "dependencies": {
+    "@standard-schema/spec": "^1.1.0"
+  },
+  "sideEffects": false,
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts"
 }

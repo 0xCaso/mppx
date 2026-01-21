@@ -7,7 +7,9 @@ export default async function () {
   if (nodeEnv !== 'localnet') return
 
   const server = Server.create({
-    instance: Instance.tempo(),
+    instance: Instance.tempo({
+      port,
+    }),
     port,
   })
 
@@ -18,5 +20,5 @@ export default async function () {
   await fetch(`http://localhost:${port}/1/start`)
   console.log('Tempo server started.')
 
-  return server.stop()
+  return () => server.stop()
 }

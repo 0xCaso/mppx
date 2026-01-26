@@ -86,10 +86,10 @@ export type VerifyFn<intents extends Record<string, MethodIntent.MethodIntent>> 
 
 export declare namespace VerifyFn {
   type Parameters<intents extends Record<string, MethodIntent.MethodIntent>> = {
-    [K in keyof intents]: {
+    [key in keyof intents]: {
       credential: Credential.Credential<
-        z.output<intents[K]['schema']['credential']['payload']>,
-        Challenge.Challenge<z.output<intents[K]['schema']['request']>, intents[K]['name']>
+        z.output<intents[key]['schema']['credential']['payload']>,
+        Challenge.Challenge<z.output<intents[key]['schema']['request']>, intents[key]['name']>
       >
       request: Request
     }
@@ -102,10 +102,7 @@ function createIntentFn<intent extends MethodIntent.MethodIntent>(
 ): createIntentFn.ReturnType<intent> {
   const { intent, realm, secretKey, verify } = parameters
 
-  async function handleFetch(
-    request: Request,
-    options: z.input<intent['schema']['request']>,
-  ): Promise<IntentFn.Response> {
+  return (options) => {
     // Recompute challenge from options. The HMAC-bound ID means we don't need to
     // store challenges server-side—if the client echoes back a credential with
     // a matching ID, we know it was issued by us with these exact parameters.
@@ -115,99 +112,101 @@ function createIntentFn<intent extends MethodIntent.MethodIntent>(
       request: options,
     })
 
-    // No credential provided—issue challenge
-    const header = request.headers.get('Authorization')
-    if (!header)
-      return {
-        challenge: Response.requirePayment({ challenge, error: new Errors.PaymentRequiredError() }),
-        status: 402,
-      }
-
-    // Parse credential from Authorization header
-    let credential: Credential.Credential
-    try {
-      credential = Credential.deserialize(header)
-    } catch (e) {
-      return {
-        challenge: Response.requirePayment({
-          challenge,
-          error: new Errors.MalformedCredentialError({ reason: (e as Error).message }),
-        }),
-        status: 402,
-      }
-    }
-
-    // The challenge ID is HMAC-SHA256(secretKey, realm|method|intent|request|expires).
-    // By comparing IDs, we verify: (1) we issued this challenge, and (2) the client
-    // hasn't tampered with any parameters. This is stateless—no database lookup needed.
-    if (credential.challenge.id !== challenge.id)
-      return {
-        challenge: Response.requirePayment({
-          challenge,
-          error: new Errors.InvalidChallengeError({
-            id: credential.challenge.id,
-            reason: 'credential does not match the issued challenge',
+    async function handleFetch(request: globalThis.Request): Promise<IntentFn.Response> {
+      // No credential provided—issue challenge
+      const header = request.headers.get('Authorization')
+      if (!header)
+        return {
+          challenge: Response.requirePayment({
+            challenge,
+            error: new Errors.PaymentRequiredError(),
           }),
-        }),
-        status: 402,
+          status: 402,
+        }
+
+      // Parse credential from Authorization header
+      let credential: Credential.Credential
+      try {
+        credential = Credential.deserialize(header)
+      } catch (e) {
+        return {
+          challenge: Response.requirePayment({
+            challenge,
+            error: new Errors.MalformedCredentialError({ reason: (e as Error).message }),
+          }),
+          status: 402,
+        }
       }
 
-    // Validate payload structure against intent schema
-    try {
-      intent.schema.credential.payload.parse(credential.payload)
-    } catch (e) {
+      // The challenge ID is HMAC-SHA256(secretKey, realm|method|intent|request|expires).
+      // By comparing IDs, we verify: (1) we issued this challenge, and (2) the client
+      // hasn't tampered with any parameters. This is stateless—no database lookup needed.
+      if (credential.challenge.id !== challenge.id)
+        return {
+          challenge: Response.requirePayment({
+            challenge,
+            error: new Errors.InvalidChallengeError({
+              id: credential.challenge.id,
+              reason: 'credential does not match the issued challenge',
+            }),
+          }),
+          status: 402,
+        }
+
+      // Validate payload structure against intent schema
+      try {
+        intent.schema.credential.payload.parse(credential.payload)
+      } catch (e) {
+        return {
+          challenge: Response.requirePayment({
+            challenge,
+            error: new Errors.InvalidPayloadError({ reason: (e as Error).message }),
+          }),
+          status: 402,
+        }
+      }
+
+      // User-provided verification (e.g., check signature, submit tx, verify payment)
+      const receiptData = await verify({ credential, request } as never)
+
       return {
-        challenge: Response.requirePayment({
-          challenge,
-          error: new Errors.InvalidPayloadError({ reason: (e as Error).message }),
-        }),
-        status: 402,
+        status: 200,
+        withReceipt(response: globalThis.Response) {
+          const headers = new Headers(response.headers)
+          headers.set('Payment-Receipt', Receipt.serialize(receiptData))
+          return new globalThis.Response(response.body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers,
+          })
+        },
       }
     }
 
-    // User-provided verification (e.g., check signature, submit tx, verify payment)
-    const receiptData = await verify({ credential, request } as never)
+    async function handleNode(request: IncomingMessage, response: ServerResponse): Promise<void> {
+      const fetchRequest = Request.fromNodeRequest(request, response)
+      const result = await handleFetch(fetchRequest)
 
-    return {
-      status: 200,
-      withReceipt(response: globalThis.Response) {
-        const headers = new Headers(response.headers)
-        headers.set('Payment-Receipt', Receipt.serialize(receiptData))
-        return new globalThis.Response(response.body, {
-          status: response.status,
-          statusText: response.statusText,
-          headers,
-        })
-      },
+      if (result.status === 402) {
+        // 402: write full response and end—caller should not continue
+        response.writeHead(402, Object.fromEntries(result.challenge.headers))
+        const body = await result.challenge.text()
+        if (body) response.write(body)
+        response.end()
+      } else {
+        // 200: set receipt header—caller handles body and calls res.end()
+        const wrapped = result.withReceipt(new globalThis.Response())
+        // biome-ignore lint/style/noNonNullAssertion: _
+        response.setHeader('Payment-Receipt', wrapped.headers.get('Payment-Receipt')!)
+      }
     }
+
+    return ((first: globalThis.Request | IncomingMessage, second?: ServerResponse) =>
+      first instanceof globalThis.Request
+        ? handleFetch(first)
+        : // biome-ignore lint/style/noNonNullAssertion: _
+          handleNode(first, second!)) as IntentFn.Handler<intent>
   }
-
-  async function handleNode(
-    request: IncomingMessage,
-    response: ServerResponse,
-    options: z.input<intent['schema']['request']>,
-  ): Promise<void> {
-    const fetchRequest = Request.fromNodeRequest(request, response)
-    const result = await handleFetch(fetchRequest, options)
-
-    if (result.status === 402) {
-      // 402: write full response and end—caller should not continue
-      response.writeHead(402, Object.fromEntries(result.challenge.headers))
-      const body = await result.challenge.text()
-      if (body) response.write(body)
-      response.end()
-    } else {
-      // 200: set receipt header—caller handles body and calls res.end()
-      const wrapped = result.withReceipt(new globalThis.Response())
-      // biome-ignore lint/style/noNonNullAssertion: _
-      response.setHeader('Payment-Receipt', wrapped.headers.get('Payment-Receipt')!)
-    }
-  }
-
-  return ((request, responseOrOptions, maybeOptions) =>
-    request instanceof globalThis.Request
-      ? handleFetch(request, responseOrOptions as never)
-      : handleNode(request, responseOrOptions, maybeOptions)) as IntentFn<intent>
 }
 
 declare namespace createIntentFn {
@@ -222,21 +221,17 @@ declare namespace createIntentFn {
 }
 
 /** @internal */
-type IntentFn<intent extends MethodIntent.MethodIntent> = IntentFn.FetchFn<intent> &
-  IntentFn.NodeFn<intent>
+type IntentFn<intent extends MethodIntent.MethodIntent> = (
+  options: z.input<intent['schema']['request']>,
+) => IntentFn.Handler<intent>
 
 /** @internal */
 declare namespace IntentFn {
-  export type FetchFn<intent extends MethodIntent.MethodIntent> = (
-    request: Request,
-    options: z.input<intent['schema']['request']>,
-  ) => Promise<IntentFn.Response>
+  export type Handler<intent extends MethodIntent.MethodIntent> = FetchFn & NodeFn
 
-  export type NodeFn<intent extends MethodIntent.MethodIntent> = (
-    request: IncomingMessage,
-    response: ServerResponse,
-    options: z.input<intent['schema']['request']>,
-  ) => Promise<void>
+  export type FetchFn = (request: globalThis.Request) => Promise<IntentFn.Response>
+
+  export type NodeFn = (request: IncomingMessage, response: ServerResponse) => Promise<void>
 
   /**
    * Response returned by an intent function (Fetch API).

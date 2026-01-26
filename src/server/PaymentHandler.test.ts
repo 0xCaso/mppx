@@ -39,12 +39,12 @@ describe('intent function', () => {
   test('behavior: returns 402 response when no Authorization header', async () => {
     const request = new Request('https://api.example.com/resource')
 
-    const response = await handler.charge(request, {
+    const response = await handler.charge({
       amount: '1000000',
       currency: '0x20c0000000000000000000000000000000000001',
       recipient: '0x742d35Cc6634C0532925a3b844Bc9e7595f8fE00',
       expires: '2025-01-06T12:00:00Z',
-    })
+    })(request)
 
     expect(response.status).toBe(402)
     if (response.status !== 402) throw new Error('Expected 402')
@@ -57,12 +57,12 @@ describe('intent function', () => {
       headers: { Authorization: 'Bearer invalid' },
     })
 
-    const response = await handler.charge(request, {
+    const response = await handler.charge({
       amount: '1000000',
       currency: '0x20c0000000000000000000000000000000000001',
       recipient: '0x742d35Cc6634C0532925a3b844Bc9e7595f8fE00',
       expires: '2025-01-06T12:00:00Z',
-    })
+    })(request)
 
     expect(response.status).toBe(402)
   })
@@ -83,18 +83,18 @@ describe('intent function', () => {
       headers: { Authorization: Credential.serialize(credential) },
     })
 
-    const response = await handler.charge(request, {
+    const response = await handler.charge({
       amount: '1000000',
       currency: '0x20c0000000000000000000000000000000000001',
       recipient: '0x742d35Cc6634C0532925a3b844Bc9e7595f8fE00',
       expires: '2025-01-06T12:00:00Z',
-    })
+    })(request)
 
     expect(response.status).toBe(402)
   })
 
   test('behavior: returns 200 with receipt wrapper when credential is valid', async () => {
-    const requestOptions = {
+    const paymentRequest = {
       amount: '1000000',
       currency: '0x20c0000000000000000000000000000000000001',
       recipient: '0x742d35Cc6634C0532925a3b844Bc9e7595f8fE00',
@@ -104,7 +104,7 @@ describe('intent function', () => {
     const challenge = Challenge.fromIntent(Intents.charge, {
       secretKey,
       realm,
-      request: requestOptions,
+      request: paymentRequest,
     })
 
     const credential = Credential.from({
@@ -116,7 +116,7 @@ describe('intent function', () => {
       headers: { Authorization: Credential.serialize(credential) },
     })
 
-    const response = await handler.charge(request, requestOptions)
+    const response = await handler.charge(paymentRequest)(request)
 
     expect(response.status).toBe(200)
     if (response.status !== 200) throw new Error('Expected 200')
@@ -134,7 +134,7 @@ describe('intent function', () => {
   })
 
   test('behavior: returns 402 when credential payload is invalid', async () => {
-    const requestOptions = {
+    const paymentRequest = {
       amount: '1000000',
       currency: '0x20c0000000000000000000000000000000000001',
       recipient: '0x742d35Cc6634C0532925a3b844Bc9e7595f8fE00',
@@ -144,7 +144,7 @@ describe('intent function', () => {
     const challenge = Challenge.fromIntent(Intents.charge, {
       secretKey,
       realm,
-      request: requestOptions,
+      request: paymentRequest,
     })
 
     const credential = Credential.from({
@@ -156,7 +156,7 @@ describe('intent function', () => {
       headers: { Authorization: Credential.serialize(credential) },
     })
 
-    const response = await handler.charge(request, requestOptions)
+    const response = await handler.charge(paymentRequest)(request)
 
     expect(response.status).toBe(402)
   })
@@ -164,12 +164,12 @@ describe('intent function', () => {
   test('behavior: 402 response contains correct challenge', async () => {
     const request = new Request('https://api.example.com/resource')
 
-    const response = await handler.charge(request, {
+    const response = await handler.charge({
       amount: '1000000',
       currency: '0x20c0000000000000000000000000000000000001',
       recipient: '0x742d35Cc6634C0532925a3b844Bc9e7595f8fE00',
       expires: '2025-01-06T12:00:00Z',
-    })
+    })(request)
 
     expect(response.status).toBe(402)
     if (response.status !== 402) throw new Error('Expected 402')
@@ -191,7 +191,7 @@ describe('intent function', () => {
 })
 
 describe('intent function (Node.js)', () => {
-  const requestOptions = {
+  const paymentRequest = {
     amount: '1000000',
     currency: '0x20c0000000000000000000000000000000000001',
     recipient: '0x742d35Cc6634C0532925a3b844Bc9e7595f8fE00',
@@ -210,7 +210,7 @@ describe('intent function (Node.js)', () => {
 
   test('behavior: writes 402 when no Authorization header', async () => {
     const { server, port } = await startServer(async (req, res) => {
-      await handler.charge(req, res, requestOptions)
+      await handler.charge(paymentRequest)(req, res)
       // 402 response is ended by handler, no need to call res.end()
     })
 
@@ -255,7 +255,7 @@ describe('intent function (Node.js)', () => {
     const challenge = Challenge.fromIntent(Intents.charge, {
       secretKey,
       realm,
-      request: requestOptions,
+      request: paymentRequest,
     })
 
     const credential = Credential.from({
@@ -264,7 +264,7 @@ describe('intent function (Node.js)', () => {
     })
 
     const { server, port } = await startServer(async (req, res) => {
-      await handler.charge(req, res, requestOptions)
+      await handler.charge(paymentRequest)(req, res)
       res.end('OK')
     })
 

@@ -313,6 +313,53 @@ describe('deserialize', () => {
   })
 })
 
+describe('fromHeader', () => {
+  test('behavior: extracts challenge from WWW-Authenticate header', () => {
+    const original = Challenge.from({
+      id: 'abc123',
+      realm: 'api.example.com',
+      method: 'tempo',
+      intent: 'charge',
+      request: { amount: '1000000' },
+    })
+
+    const header = Challenge.serialize(original)
+    const challenge = Challenge.fromHeader(header)
+
+    expect(challenge.id).toBe('abc123')
+    expect(challenge.realm).toBe('api.example.com')
+    expect(challenge.method).toBe('tempo')
+    expect(challenge.intent).toBe('charge')
+  })
+})
+
+describe('fromHeaders', () => {
+  test('behavior: extracts challenge from Headers object', () => {
+    const original = Challenge.from({
+      id: 'abc123',
+      realm: 'api.example.com',
+      method: 'tempo',
+      intent: 'charge',
+      request: { amount: '1000000' },
+    })
+
+    const headers = new Headers({ 'WWW-Authenticate': Challenge.serialize(original) })
+    const challenge = Challenge.fromHeaders(headers)
+
+    expect(challenge.id).toBe('abc123')
+    expect(challenge.realm).toBe('api.example.com')
+    expect(challenge.method).toBe('tempo')
+    expect(challenge.intent).toBe('charge')
+  })
+
+  test('error: missing WWW-Authenticate header', () => {
+    const headers = new Headers()
+    expect(() => Challenge.fromHeaders(headers)).toThrowErrorMatchingInlineSnapshot(
+      `[Error: Missing WWW-Authenticate header]`,
+    )
+  })
+})
+
 describe('fromResponse', () => {
   test('behavior: extracts challenge from 402 response', () => {
     const original = Challenge.from({

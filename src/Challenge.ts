@@ -282,6 +282,42 @@ export function deserialize(value: string): Challenge {
 }
 
 /**
+ * Extracts the challenge from a WWW-Authenticate header value.
+ *
+ * @param header - The WWW-Authenticate header value.
+ * @returns The deserialized challenge.
+ *
+ * @example
+ * ```ts
+ * import { Challenge } from 'mpay'
+ *
+ * const challenge = Challenge.fromHeader(response.headers.get('WWW-Authenticate')!)
+ * ```
+ */
+export function fromHeader(header: string): Challenge {
+  return deserialize(header)
+}
+
+/**
+ * Extracts the challenge from a Headers object.
+ *
+ * @param headers - The HTTP headers.
+ * @returns The deserialized challenge.
+ *
+ * @example
+ * ```ts
+ * import { Challenge } from 'mpay'
+ *
+ * const challenge = Challenge.fromHeaders(response.headers)
+ * ```
+ */
+export function fromHeaders(headers: Headers): Challenge {
+  const header = headers.get('WWW-Authenticate')
+  if (!header) throw new Error('Missing WWW-Authenticate header')
+  return deserialize(header)
+}
+
+/**
  * Extracts the challenge from a Response's WWW-Authenticate header.
  *
  * @param response - The HTTP response (must be 402 status).

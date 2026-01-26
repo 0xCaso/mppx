@@ -179,17 +179,14 @@ const challenge = Challenge.from({
 })
 ```
 
-#### `Challenge.fromHeader`
+#### `Challenge.fromHeaders`
 
-Parses and defines a challenge from a `WWW-Authenticate` header.
+Parses and defines a challenge from HTTP headers.
 
 ```ts
 import { Challenge } from 'mpay'
-import { Intents } from 'mpay/tempo'
 
-const challenge = Challenge.fromHeader(res.headers.get('www-authenticate')!, {
-  intents: [Intents.charge],
-})
+const challenge = Challenge.fromHeaders(response.headers)
 ```
 
 #### `Challenge.fromIntent`

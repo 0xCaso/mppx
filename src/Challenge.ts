@@ -285,23 +285,6 @@ export function deserialize(value: string): Challenge {
 }
 
 /**
- * Extracts the challenge from a WWW-Authenticate header value.
- *
- * @param header - The WWW-Authenticate header value.
- * @returns The deserialized challenge.
- *
- * @example
- * ```ts
- * import { Challenge } from 'mpay'
- *
- * const challenge = Challenge.fromHeader(response.headers.get('WWW-Authenticate')!)
- * ```
- */
-export function fromHeader(header: string): Challenge {
-  return deserialize(header)
-}
-
-/**
  * Extracts the challenge from a Headers object.
  *
  * @param headers - The HTTP headers.

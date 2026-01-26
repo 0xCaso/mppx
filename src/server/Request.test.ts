@@ -33,7 +33,7 @@ describe('fromNodeRequest', () => {
       ],
     })
 
-    const request = Request.fromNodeRequest(incoming)
+    const request = Request.fromNodeListener(incoming)
 
     expect(request.method).toBe('POST')
     expect(request.url).toBe('http://example.com/api/resource')
@@ -44,7 +44,7 @@ describe('fromNodeRequest', () => {
   test('uses default values when host/url/method missing', () => {
     const incoming = createMockRequest({})
 
-    const request = Request.fromNodeRequest(incoming)
+    const request = Request.fromNodeListener(incoming)
 
     expect(request.method).toBe('GET')
     expect(request.url).toBe('http://localhost/')
@@ -55,7 +55,7 @@ describe('fromNodeRequest', () => {
       rawHeaders: ['Host', 'example.com', 'Set-Cookie', 'a=1', 'Set-Cookie', 'b=2'],
     })
 
-    const request = Request.fromNodeRequest(incoming)
+    const request = Request.fromNodeListener(incoming)
 
     expect(request.headers.get('Set-Cookie')).toBe('a=1, b=2')
   })
@@ -65,7 +65,7 @@ describe('fromNodeRequest', () => {
       rawHeaders: [':method', 'GET', ':path', '/', 'Host', 'example.com'],
     })
 
-    const request = Request.fromNodeRequest(incoming)
+    const request = Request.fromNodeListener(incoming)
 
     expect([...request.headers.keys()]).toEqual(['host'])
     expect(request.headers.get('Host')).toBe('example.com')
@@ -77,7 +77,7 @@ describe('fromNodeRequest', () => {
       rawHeaders: ['Host', 'example.com', 'Content-Type', 'application/json'],
     })
 
-    const request = Request.fromNodeRequest(incoming)
+    const request = Request.fromNodeListener(incoming)
 
     setImmediate(() => {
       incoming.emit('data', Buffer.from('{"hello":'))

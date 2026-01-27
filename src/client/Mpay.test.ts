@@ -1,28 +1,24 @@
-import type { Account } from 'viem'
 import { describe, expect, test } from 'vitest'
+import { rpcUrl } from '~test/tempo/prool.js'
+import { accounts, chain } from '~test/tempo/viem.js'
 import * as Challenge from '../Challenge.js'
 import * as Credential from '../Credential.js'
 import * as Method from '../Method.js'
-import { tempo } from '../tempo/Method.js'
+import * as Methods from '../tempo/client/Method.js'
 import * as Intents from '../tempo/Intents.js'
-import * as z from '../zod.js'
 import * as Mpay from './Mpay.js'
 
 const realm = 'api.example.com'
 const secretKey = 'test-secret-key'
+const tempo = Methods.tempo({
+  account: accounts[1],
+  chainId: chain.id,
+  rpcUrl,
+})
 
 describe('Mpay.create', () => {
   test('default', () => {
-    const clientMethod = Method.toClient(tempo, {
-      async createCredential({ challenge }) {
-        return Credential.serialize({
-          challenge,
-          payload: { signature: '0xtest', type: 'transaction' },
-        })
-      },
-    })
-
-    const mpay = Mpay.create({ methods: [clientMethod] })
+    const mpay = Mpay.create({ methods: [tempo] })
 
     expect(mpay.methods).toHaveLength(1)
     expect(mpay.methods[0]?.name).toBe('tempo')
@@ -30,21 +26,11 @@ describe('Mpay.create', () => {
   })
 
   test('behavior: with multiple methods', () => {
-    const tempoClient = Method.toClient(tempo, {
-      async createCredential({ challenge }) {
-        return Credential.serialize({
-          challenge,
-          payload: { signature: '0xtest', type: 'transaction' },
-        })
-      },
-    })
-
-    const stripeMethod = Method.from({
+    const stripeBase = Method.from({
       name: 'stripe',
       intents: { charge: Intents.charge },
     })
-
-    const stripeClient = Method.toClient(stripeMethod, {
+    const stripeMethod = Method.toClient(stripeBase, {
       async createCredential({ challenge }) {
         return Credential.serialize({
           challenge,
@@ -53,7 +39,7 @@ describe('Mpay.create', () => {
       },
     })
 
-    const mpay = Mpay.create({ methods: [tempoClient, stripeClient] })
+    const mpay = Mpay.create({ methods: [tempo, stripeMethod] })
 
     expect(mpay.methods).toHaveLength(2)
     expect(mpay.methods[0]?.name).toBe('tempo')
@@ -63,24 +49,15 @@ describe('Mpay.create', () => {
 
 describe('createCredential', () => {
   test('behavior: routes to correct method based on challenge', async () => {
-    const tempoClient = Method.toClient(tempo, {
-      async createCredential({ challenge }) {
-        return Credential.serialize({
-          challenge,
-          payload: { signature: '0xtest-signature', type: 'transaction' },
-        })
-      },
-    })
-
-    const mpay = Mpay.create({ methods: [tempoClient] })
+    const mpay = Mpay.create({ methods: [tempo] })
 
     const challenge = Challenge.fromIntent(Intents.charge, {
       realm,
       secretKey,
       request: {
         amount: '1000',
-        currency: '0x1234',
-        recipient: '0x5678',
+        currency: '0x1234567890123456789012345678901234567890',
+        recipient: '0x1234567890123456789012345678901234567890',
         expires: new Date(Date.now() + 60_000).toISOString(),
       },
     })
@@ -97,21 +74,12 @@ describe('createCredential', () => {
     expect(credential).toMatch(/^Payment /)
 
     const parsed = Credential.deserialize(credential)
-    expect(parsed.payload).toEqual({ signature: '0xtest-signature', type: 'transaction' })
+    expect((parsed.payload as { type: string }).type).toBe('transaction')
     expect(parsed.challenge.method).toBe('tempo')
   })
 
   test('behavior: throws when method not found', async () => {
-    const tempoClient = Method.toClient(tempo, {
-      async createCredential({ challenge }) {
-        return Credential.serialize({
-          challenge,
-          payload: { signature: '0xtest', type: 'transaction' },
-        })
-      },
-    })
-
-    const mpay = Mpay.create({ methods: [tempoClient] })
+    const mpay = Mpay.create({ methods: [tempo] })
 
     const challenge = Challenge.from({
       id: 'test-id',
@@ -134,21 +102,12 @@ describe('createCredential', () => {
   })
 
   test('behavior: routes to correct method with multiple methods', async () => {
-    const tempoClient = Method.toClient(tempo, {
-      async createCredential({ challenge }) {
-        return Credential.serialize({
-          challenge,
-          payload: { signature: '0xtest', type: 'transaction' },
-        })
-      },
-    })
-
-    const stripeMethod = Method.from({
+    const stripeBase = Method.from({
       name: 'stripe',
       intents: { charge: Intents.charge },
     })
 
-    const stripeClient = Method.toClient(stripeMethod, {
+    const stripe = Method.toClient(stripeBase, {
       async createCredential({ challenge }) {
         return Credential.serialize({
           challenge,
@@ -157,7 +116,7 @@ describe('createCredential', () => {
       },
     })
 
-    const mpay = Mpay.create({ methods: [tempoClient, stripeClient] })
+    const mpay = Mpay.create({ methods: [tempo, stripe] })
 
     const stripeChallenge = Challenge.from({
       id: 'stripe-challenge-id',
@@ -187,27 +146,20 @@ describe('createCredential', () => {
   })
 
   test('behavior: passes context to createCredential', async () => {
-    const tempoClient = Method.toClient(tempo, {
-      context: z.object({
-        account: z.custom<Account>(),
-      }),
-      async createCredential({ challenge, context }) {
-        return Credential.serialize({
-          challenge,
-          payload: { signature: context.account.address, type: 'transaction' },
-        })
-      },
+    const method = Methods.tempo({
+      chainId: chain.id,
+      rpcUrl,
     })
 
-    const mpay = Mpay.create({ methods: [tempoClient] })
+    const mpay = Mpay.create({ methods: [method] })
 
     const challenge = Challenge.fromIntent(Intents.charge, {
       realm,
       secretKey,
       request: {
         amount: '1000',
-        currency: '0x1234',
-        recipient: '0x5678',
+        currency: '0x1234567890123456789012345678901234567890',
+        recipient: '0x1234567890123456789012345678901234567890',
         expires: new Date(Date.now() + 60_000).toISOString(),
       },
     })
@@ -219,32 +171,23 @@ describe('createCredential', () => {
       },
     })
 
-    const mockAccount = { address: '0xMockAddress' } as unknown as Account
-    const credential = await mpay.createCredential(response, { account: mockAccount })
+    const credential = await mpay.createCredential(response, { account: accounts[1] })
 
     const parsed = Credential.deserialize(credential)
-    expect(parsed.payload).toEqual({ signature: '0xMockAddress', type: 'transaction' })
+    expect((parsed.payload as { type: string }).type).toBe('transaction')
+    expect(parsed.source).toContain(accounts[1].address)
   })
 
-  test('behavior: works without context when method has no context schema', async () => {
-    const tempoClient = Method.toClient(tempo, {
-      async createCredential({ challenge }) {
-        return Credential.serialize({
-          challenge,
-          payload: { signature: '0xno-context', type: 'transaction' },
-        })
-      },
-    })
-
-    const mpay = Mpay.create({ methods: [tempoClient] })
+  test('behavior: works without context when account provided at creation', async () => {
+    const mpay = Mpay.create({ methods: [tempo] })
 
     const challenge = Challenge.fromIntent(Intents.charge, {
       realm,
       secretKey,
       request: {
         amount: '1000',
-        currency: '0x1234',
-        recipient: '0x5678',
+        currency: '0x1234567890123456789012345678901234567890',
+        recipient: '0x1234567890123456789012345678901234567890',
         expires: new Date(Date.now() + 60_000).toISOString(),
       },
     })
@@ -258,6 +201,6 @@ describe('createCredential', () => {
 
     const credential = await mpay.createCredential(response)
     const parsed = Credential.deserialize(credential)
-    expect(parsed.payload).toEqual({ signature: '0xno-context', type: 'transaction' })
+    expect((parsed.payload as { type: string }).type).toBe('transaction')
   })
 })

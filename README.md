@@ -64,27 +64,67 @@ export async function handler(request: Request) {
 }
 ```
 
-#### Node.js Compatibility
+#### HTTP Node.js Compatibility
 
-Intent handlers accept both Fetch `Request` and Node.js `http.IncomingMessage`/`http.ServerResponse`.
+Use `Mpay.toNodeListener` to wrap payment handlers for Node.js HTTP servers. It automatically handles 402 responses (writes headers, body, and ends the response) and sets the `Payment-Receipt` header on success.
 
 ```ts
 import * as http from 'node:http'
+import { Mpay } from 'mpay/server'
 
 http.createServer(async (req, res) => {
-  const { status } = await payment.charge({
+  const result = await Mpay.toNodeListener(
+    mpay.charge({
+      request: {
+        amount: '1000000',
+        currency: '0x20c0000000000000000000000000000000000001',
+        recipient: '0x742d35Cc6634c0532925a3b844bC9e7595F8fE00',
+        expires: '2030-01-20T12:00:00Z',
+      },
+    }),
+  )(req, res)
+
+  // 402 response already sent
+  if (result.status === 402) return
+
+  // Payment verified — send resource
+  res.writeHead(200, { 'Content-Type': 'application/json' })
+  res.end(JSON.stringify({ data: '...' }))
+}).listen(3000)
+```
+
+#### MCP (Model Context Protocol)
+
+Use `Transport.mcpSdk()` for MCP SDK integration.
+
+```ts
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp'
+import { Mpay, Transport, tempo } from 'mpay/server'
+
+const mpay = Mpay.create({
+  method: tempo({ rpcUrl: 'https://rpc.tempo.xyz' }),
+  realm: 'mcp.example.com',
+  secretKey: process.env.SECRET_KEY,
+  transport: Transport.mcpSdk(),
+})
+
+const server = new McpServer({ name: 'my-server', version: '1.0.0' })
+
+server.registerTool('premium_tool', { description: '...' }, async (extra) => {
+  const result = await mpay.charge({
     request: {
       amount: '1000000',
       currency: '0x20c0000000000000000000000000000000000001',
       recipient: '0x742d35Cc6634c0532925a3b844bC9e7595F8fE00',
-      expires: '2030-01-20T12:00:00Z',
     },
-  })(req, res)
-  if (status === 402) return
+  })(extra)
 
-  res.writeHead(200, { 'Content-Type': 'application/json' })
-  res.end(JSON.stringify({ data: '...' }))
-}).listen(3000)
+  // Payment required — throw challenge
+  if (result.status === 402) throw result.challenge
+
+  // Payment verified — return result with receipt
+  return result.withReceipt({ content: [{ type: 'text', text: 'Tool executed' }] })
+})
 ```
 
 ### Client
@@ -166,6 +206,37 @@ const credential = await mpay.createCredential(res)
 const res2 = await fetch('https://api.example.com/resource', {
   headers: { 'Authorization': credential }
 })
+```
+
+#### MCP (Model Context Protocol)
+
+Use `McpClient.wrap` to wrap an MCP SDK client with automatic payment handling. Like `Fetch.from` for HTTP, it detects payment challenges and retries with credentials.
+
+```ts
+import { Client } from '@modelcontextprotocol/sdk/client'
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio'
+import { McpClient, tempo } from 'mpay/mcp-sdk/client'
+import { privateKeyToAccount } from 'viem/accounts'
+
+// Create MCP client
+const client = new Client({ name: 'my-client', version: '1.0.0' })
+await client.connect(new StdioClientTransport({ command: 'mcp-server' }))
+
+// Wrap with payment handling
+const mcp = McpClient.wrap(client, {
+  methods: [
+    tempo({
+      account: privateKeyToAccount('0x...'),
+      rpcUrl: 'https://rpc.tempo.xyz',
+    }),
+  ],
+})
+
+// Call tool — handles payment challenges automatically
+const result = await mcp.callTool({ name: 'premium_tool', arguments: {} })
+
+console.log(result.content) // Tool result
+console.log(result.receipt) // Payment receipt if payment was made
 ```
 
 ## API Reference

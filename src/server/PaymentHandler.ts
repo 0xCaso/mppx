@@ -187,30 +187,31 @@ function createIntentFn<intent extends MethodIntent.MethodIntent>(
       }
     }
 
-    async function handleNode(request: IncomingMessage, response: ServerResponse): Promise<IntentFn.Response> {
-      const result = await handleFetch(Request.fromNodeListener(request, response))
+    async function handleNode(
+      req: IncomingMessage,
+      res: ServerResponse,
+    ): Promise<IntentFn.Response> {
+      const response = await handleFetch(Request.fromNodeListener(req, res))
 
-      if (result.status === 402) {
+      if (response.status === 402) {
         // 402: write full response and end—caller should not continue
-        response.writeHead(402, Object.fromEntries(result.challenge.headers))
-        const body = await result.challenge.text()
-        if (body) response.write(body)
-        response.end()
+        res.writeHead(402, Object.fromEntries(response.challenge.headers))
+        const body = await response.challenge.text()
+        if (body) res.write(body)
+        res.end()
       } else {
         // 200: set receipt header—caller handles body and calls res.end()
-        const wrapped = result.withReceipt(new globalThis.Response())
-        // biome-ignore lint/style/noNonNullAssertion: _
-        response.setHeader('Payment-Receipt', wrapped.headers.get('Payment-Receipt')!)
+        const wrapped = response.withReceipt(new globalThis.Response())
+        res.setHeader('Payment-Receipt', wrapped.headers.get('Payment-Receipt')!)
       }
 
-      return result
+      return response
     }
 
     return ((first: globalThis.Request | IncomingMessage, second?: ServerResponse) =>
       first instanceof globalThis.Request
         ? handleFetch(first)
-        : // biome-ignore lint/style/noNonNullAssertion: _
-          handleNode(first, second!)) as IntentFn.Handler
+        : handleNode(first, second!)) as IntentFn.Handler
   }
 }
 
@@ -245,7 +246,10 @@ declare namespace IntentFn {
 
   export type FetchFn = (request: globalThis.Request) => Promise<IntentFn.Response>
 
-  export type NodeFn = (request: IncomingMessage, response: ServerResponse) => Promise<IntentFn.Response>
+  export type NodeFn = (
+    request: IncomingMessage,
+    response: ServerResponse,
+  ) => Promise<IntentFn.Response>
 
   /**
    * Response returned by an intent function (Fetch API).

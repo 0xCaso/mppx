@@ -1,5 +1,5 @@
-import type { IncomingMessage, ServerResponse } from 'node:http'
 import { describe, expect, test } from 'vitest'
+import * as Http from '~test/Http.js'
 import * as Challenge from '../Challenge.js'
 import * as Credential from '../Credential.js'
 import * as Receipt from '../Receipt.js'
@@ -133,7 +133,6 @@ describe('intent function', () => {
     if (response.status !== 200) throw new Error('Expected 200')
 
     const res = response.withReceipt(new Response('OK', { status: 200 }))
-    // biome-ignore lint/style/noNonNullAssertion: _
     const receipt = Receipt.deserialize(res.headers.get('Payment-Receipt')!)
     expect({ ...receipt, timestamp: '[timestamp]' }).toMatchInlineSnapshot(`
       {
@@ -236,54 +235,39 @@ describe('intent function (Node.js)', () => {
     expires: '2025-01-06T12:00:00Z',
   }
 
-  async function startServer(
-    handleRequest: (req: IncomingMessage, res: ServerResponse) => Promise<void>,
-  ) {
-    const { createServer } = await import('node:http')
-    const server = createServer(handleRequest)
-    await new Promise<void>((resolve) => server.listen(0, resolve))
-    const address = server.address() as { port: number }
-    return { server, port: address.port }
-  }
-
-  test('behavior: writes 402 when no Authorization header', async () => {
-    const { server, port } = await startServer(async (req, res) => {
-      await handler.charge({ request: paymentRequest, expires: paymentRequest.expires })(req, res)
-      // 402 response is ended by handler, no need to call res.end()
+  test('default', async () => {
+    const server = await Http.createServer(async (req, res) => {
+      const response = await handler.charge({ request: paymentRequest })(req, res)
+      if (response.status === 402) return
+      res.end()
     })
 
     try {
-      const response = await fetch(`http://localhost:${port}`)
-      // biome-ignore lint/style/noNonNullAssertion: test assertion
+      const response = await fetch(server.url)
       const challenge = Challenge.deserialize(response.headers.get('WWW-Authenticate')!)
       const body = (await response.json()) as { challengeId: string }
-      expect({
-        status: response.status,
-        challenge: { ...challenge, id: '[id]' },
-        body: { ...body, challengeId: '[id]' },
-      }).toMatchInlineSnapshot(`
+      expect(response.status).toBe(402)
+      expect({ ...challenge, id: '[id]' }).toMatchInlineSnapshot(`
         {
-          "body": {
-            "challengeId": "[id]",
-            "detail": "Payment is required for "api.example.com".",
-            "status": 402,
-            "title": "PaymentRequiredError",
-            "type": "https://tempoxyz.github.io/payment-auth-spec/problems/payment-required",
-          },
-          "challenge": {
+          "id": "[id]",
+          "intent": "charge",
+          "method": "tempo",
+          "realm": "api.example.com",
+          "request": {
+            "amount": "1000000",
+            "currency": "0x20c0000000000000000000000000000000000001",
             "expires": "2025-01-06T12:00:00Z",
-            "id": "[id]",
-            "intent": "charge",
-            "method": "tempo",
-            "realm": "api.example.com",
-            "request": {
-              "amount": "1000000",
-              "currency": "0x20c0000000000000000000000000000000000001",
-              "expires": "2025-01-06T12:00:00Z",
-              "recipient": "0x742d35Cc6634C0532925a3b844Bc9e7595f8fE00",
-            },
+            "recipient": "0x742d35Cc6634C0532925a3b844Bc9e7595f8fE00",
           },
+        }
+      `)
+      expect({ ...body, challengeId: '[id]' }).toMatchInlineSnapshot(`
+        {
+          "challengeId": "[id]",
+          "detail": "Payment is required for "api.example.com".",
           "status": 402,
+          "title": "PaymentRequiredError",
+          "type": "https://tempoxyz.github.io/payment-auth-spec/problems/payment-required",
         }
       `)
     } finally {
@@ -296,7 +280,6 @@ describe('intent function (Node.js)', () => {
       secretKey,
       realm,
       request: paymentRequest,
-      expires: paymentRequest.expires,
     })
 
     const credential = Credential.from({
@@ -304,29 +287,24 @@ describe('intent function (Node.js)', () => {
       payload: { signature: `0x${'ab'.repeat(65)}`, type: 'transaction' as const },
     })
 
-    const { server, port } = await startServer(async (req, res) => {
-      await handler.charge({ request: paymentRequest, expires: paymentRequest.expires })(req, res)
-      res.end('OK')
+    const server = await Http.createServer(async (req, res) => {
+      await handler.charge({ request: paymentRequest })(req, res)
+      if (!res.headersSent) res.end()
     })
 
     try {
-      const response = await fetch(`http://localhost:${port}`, {
+      const response = await fetch(server.url, {
         headers: { Authorization: Credential.serialize(credential) },
       })
-      // biome-ignore lint/style/noNonNullAssertion: test assertion
+
+      expect(response.status).toBe(200)
       const receipt = Receipt.deserialize(response.headers.get('Payment-Receipt')!)
-      expect({
-        status: response.status,
-        receipt: { ...receipt, timestamp: '[timestamp]' },
-      }).toMatchInlineSnapshot(`
+      expect({ ...receipt, timestamp: '[timestamp]' }).toMatchInlineSnapshot(`
         {
-          "receipt": {
-            "method": "tempo",
-            "reference": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            "status": "success",
-            "timestamp": "[timestamp]",
-          },
-          "status": 200,
+          "method": "tempo",
+          "reference": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "status": "success",
+          "timestamp": "[timestamp]",
         }
       `)
     } finally {

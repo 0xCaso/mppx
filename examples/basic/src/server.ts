@@ -1,3 +1,4 @@
+import { Expires } from 'mpay'
 import { Mpay, tempo } from 'mpay/server'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 
@@ -29,7 +30,7 @@ export async function handler(request: Request): Promise<Response | null> {
       request: {
         amount: '1000000', // 1 USD
         currency,
-        expires: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+        expires: Expires.minute(5),
         recipient: account.address,
       },
     })(request)

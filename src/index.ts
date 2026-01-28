@@ -1,6 +1,7 @@
 export * as BodyDigest from './BodyDigest.js'
 export * as Challenge from './Challenge.js'
 export * as Credential from './Credential.js'
+export * as Expires from './Expires.js'
 export * as Intent from './Intent.js'
 export * as Mcp from './Mcp.js'
 export * as MethodIntent from './MethodIntent.js'

@@ -29,7 +29,7 @@ export async function handler(request: Request): Promise<Response | null> {
       request: {
         amount: '1000000', // 1 USD
         currency,
-        expires: Expires.minute(5),
+        expires: Expires.minutes(5),
         recipient: account.address,
       },
     })(request)

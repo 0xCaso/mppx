@@ -13,12 +13,8 @@ import { Abis, Transaction } from 'viem/tempo'
 import type { OneOf } from '../../internal/types.js'
 import * as Method from '../../Method.js'
 import * as z from '../../zod.js'
+import * as defaults from '../internal/defaults.js'
 import * as Methods from './../Method.js'
-
-const defaultParameters = {
-  chainId: 4217,
-  rpcUrl: 'https://rpc.tempo.xyz',
-} as const
 
 const transfer = /*#__PURE__*/ AbiFunction.from(
   'function transfer(address to, uint256 amount) returns (bool)',
@@ -42,9 +38,9 @@ const transferWithMemoSelector = /*#__PURE__*/ AbiFunction.getSelector(transferW
  */
 export function tempo(parameters: tempo.Parameters = {}) {
   const {
-    chainId = defaultParameters.chainId,
+    chainId = defaults.chainId,
     feePayer,
-    rpcUrl = defaultParameters.rpcUrl,
+    rpcUrl = defaults.rpcUrl,
   } = parameters
 
   const client = (() => {

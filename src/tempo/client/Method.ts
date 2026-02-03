@@ -7,6 +7,7 @@ import * as Credential from '../../Credential.js'
 import type { OneOf } from '../../internal/types.js'
 import * as Method from '../../Method.js'
 import * as z from '../../zod.js'
+import * as defaults from '../internal/defaults.js'
 import * as Methods from '../Method.js'
 
 /**
@@ -19,19 +20,23 @@ import * as Methods from '../Method.js'
  *
  * const method = tempo({
  *   account: privateKeyToAccount('0x...'),
- *   rpcUrl: 'https://rpc.tempo.xyz',
  * })
  * ```
  */
-export function tempo(parameters: tempo.Parameters) {
+export function tempo(parameters: tempo.Parameters = {}) {
+  const {
+    chainId = defaults.chainId,
+    rpcUrl = defaults.rpcUrl,
+  } = parameters
+
   const client = (() => {
     if (parameters.client) return parameters.client
     return createClient({
       chain: {
         ...tempo_chain,
-        id: parameters.chainId ?? tempo_chain.id,
+        id: chainId,
       },
-      transport: http(parameters.rpcUrl),
+      transport: http(rpcUrl),
     })
   })()
 
@@ -84,13 +89,13 @@ export declare namespace tempo {
   } & OneOf<
     | {
         /** Viem Client. */
-        client: Client
+        client?: Client | undefined
       }
     | {
         /** Tempo chain ID. */
         chainId?: number | undefined
         /** Tempo RPC URL. */
-        rpcUrl: string
+        rpcUrl?: string | undefined
       }
   >
 }

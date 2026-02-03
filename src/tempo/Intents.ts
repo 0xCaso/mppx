@@ -22,7 +22,7 @@ export const charge = MethodIntent.fromIntent(Intent.charge, {
         feePayer: z.optional(z.boolean()),
         memo: z.optional(z.hash()),
       }),
-      requires: ['recipient', 'expires'],
+      requires: ['recipient'],
     },
   },
 })

@@ -3,17 +3,13 @@ import * as Intent from './Intent.js'
 
 describe('charge', () => {
   test('behavior: validates valid request', () => {
-    expect(
-      Intent.charge.schema.request.parse({
-        amount: '1000',
-        currency: 'USD',
-      }),
-    ).toMatchInlineSnapshot(`
-      {
-        "amount": "1000",
-        "currency": "USD",
-      }
-    `)
+    const result = Intent.charge.schema.request.parse({
+      amount: '1000',
+      currency: 'USD',
+    })
+    expect(result.amount).toBe('1000')
+    expect(result.currency).toBe('USD')
+    expect(result.expires).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
   })
 
   test('behavior: validates with all optional fields', () => {

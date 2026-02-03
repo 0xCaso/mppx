@@ -76,7 +76,7 @@ export function tempo(parameters: tempo.Parameters) {
           const currency = request.currency as Address.Address
           const recipient = request.recipient as Address.Address
 
-          if (new Date(expires) < new Date()) throw new Error('Payment request expired')
+          if (expires && new Date(expires) < new Date()) throw new Error('Payment request expired')
 
           const payload = credential.payload
 

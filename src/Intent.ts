@@ -1,3 +1,4 @@
+import * as Expires from './Expires.js'
 import * as z from './zod.js'
 
 /**
@@ -45,7 +46,7 @@ export const charge = from({
       amount: z.amount(),
       currency: z.string(),
       description: z.optional(z.string()),
-      expires: z.optional(z.datetime()),
+      expires: z._default(z.datetime(), () => Expires.minutes(5)),
       externalId: z.optional(z.string()),
       recipient: z.optional(z.string()),
     }),

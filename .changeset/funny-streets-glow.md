@@ -1,0 +1,5 @@
+---
+"mpay": minor
+---
+
+Initial release.

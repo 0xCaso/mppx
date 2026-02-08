@@ -157,7 +157,7 @@ export function stream(parameters: stream.Parameters = {}) {
     account: Account,
   ): Promise<string> {
     const md = challenge.request.methodDetails as
-      | { chainId?: number; escrowContract?: string; channelId?: string }
+      | { chainId?: number; escrowContract?: string; channelId?: string; feePayer?: boolean }
       | undefined
     const chainId = md?.chainId ?? 0
     const client = await getClient(chainId)
@@ -198,6 +198,7 @@ export function stream(parameters: stream.Parameters = {}) {
         deposit,
         amount,
         chainId,
+        md?.feePayer,
       )
       channels.set(key, result.entry)
       escrowContractMap.set(result.entry.channelId, escrowContract)
@@ -216,6 +217,7 @@ export function stream(parameters: stream.Parameters = {}) {
     deposit: bigint,
     initialAmount: bigint,
     chainId: number,
+    feePayer?: boolean | undefined,
   ): Promise<{ entry: ChannelEntry; payload: StreamCredentialPayload }> {
     const salt = randomSalt()
 
@@ -247,6 +249,7 @@ export function stream(parameters: stream.Parameters = {}) {
         { to: currency, data: approveData },
         { to: escrowContract, data: openData },
       ],
+      ...(feePayer && { feePayer: true }),
     } as never)
     prepared.gas = prepared.gas! + 5_000n
     const transaction = (await signTransaction(client, prepared as never)) as Hex

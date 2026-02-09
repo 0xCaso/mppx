@@ -1,4 +1,4 @@
-import { Expires, Mpay, tempo } from 'mpay/server'
+import { Mpay, tempo } from 'mpay/server'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 
 const account = privateKeyToAccount(generatePrivateKey())
@@ -7,12 +7,12 @@ const currency = '0x20c0000000000000000000000000000000000001' as const // alphaU
 const mpay = Mpay.create({
   methods: [
     tempo.charge({
+      currency,
       feePayer: account,
+      recipient: account.address,
       testnet: true,
     }),
   ],
-  realm: 'localhost',
-  secretKey: 'top-secret-should-be-hidden-somewhere',
 })
 
 export async function handler(request: Request): Promise<Response | null> {
@@ -23,13 +23,7 @@ export async function handler(request: Request): Promise<Response | null> {
 
   // Paid
   if (url.pathname === '/api/fortune') {
-    const result = await mpay.charge({
-      amount: '1', // 1 USD
-      description: 'Fortune for you',
-      currency,
-      expires: Expires.minutes(5),
-      recipient: account.address,
-    })(request)
+    const result = await mpay.charge({ amount: '1' })(request)
 
     if (result.status === 402) return result.challenge
 

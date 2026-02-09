@@ -70,6 +70,7 @@ npx gitpick wevm/mpay/examples/basic
 mpay includes a basic CLI for making HTTP requests with automatic payment handling.
 
 ```
+npm run mpay account create
 npm run mpay example.com
 ```
 

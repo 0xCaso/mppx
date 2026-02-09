@@ -1,9 +1,9 @@
-import type { Account, Client, Hex } from 'viem'
-import { hashTypedData, isAddressEqual, recoverTypedDataAddress } from 'viem'
-import { signTypedData } from 'viem/actions'
+import type { Address } from 'ox'
 import { SignatureEnvelope } from 'ox/tempo'
+import type { Account, Client, Hex } from 'viem'
+import { isAddressEqual, recoverTypedDataAddress } from 'viem'
+import { signTypedData } from 'viem/actions'
 import type { SignedVoucher, Voucher } from './Types.js'
-import { Address, Secp256k1 } from 'ox'
 
 /** Must match the on-chain TempoStreamChannel DOMAIN_SEPARATOR name. */
 const DOMAIN_NAME = 'Tempo Stream Channel'

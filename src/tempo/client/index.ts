@@ -4,7 +4,7 @@ import { stream as stream_ } from './Stream.js'
 export { charge } from './Charge.js'
 export { stream } from './Stream.js'
 
-export function tempo(parameters: tempo.Parameters) {
+export function tempo(parameters: tempo.Parameters = {}) {
   return [tempo.charge(parameters), tempo.stream(parameters)] as const
 }
 

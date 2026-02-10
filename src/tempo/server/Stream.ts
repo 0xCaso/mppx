@@ -73,8 +73,6 @@ export function stream<const defaults extends stream.Defaults>(p?: stream.Parame
     feePayer,
   } = parameters
 
-  if (!storage) throw new Error('storage is required')
-
   const getClient = Client.getResolver({
     chain: tempo_chain,
     getClient: parameters.getClient,
@@ -131,6 +129,8 @@ export function stream<const defaults extends stream.Defaults>(p?: stream.Parame
     },
 
     async verify({ credential }) {
+      if (!storage) throw new Error('storage is required')
+
       const { challenge, payload } = credential as Credential.Credential<StreamCredentialPayload>
 
       const methodDetails = challenge.request.methodDetails as StreamMethodDetails

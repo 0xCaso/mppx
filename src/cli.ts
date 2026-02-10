@@ -439,7 +439,10 @@ function execCommand(command: string, args: string[]): Promise<string> {
   })
 }
 
-function execCommandFull(command: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
+function execCommandFull(
+  command: string,
+  args: string[],
+): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve) => {
     child.execFile(command, args, (_error, stdout, stderr) => {
       resolve({ stdout: stdout.trim(), stderr: stderr.trim() })
@@ -594,7 +597,9 @@ function chainName(chain: { id: number; name: string }) {
 function printEntries(entries: [string, string][], padEnd?: number) {
   const maxKeyLength = padEnd ?? Math.max(...entries.map(([key]) => key.length))
   for (const [key, value] of entries)
-    console.error(`${key ? `${key}:`.padEnd(maxKeyLength + 2) : ' '.repeat(maxKeyLength + 2)}${value}`)
+    console.error(
+      `${key ? `${key}:`.padEnd(maxKeyLength + 2) : ' '.repeat(maxKeyLength + 2)}${value}`,
+    )
 }
 
 function printExplorerLinks(address: string) {

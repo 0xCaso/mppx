@@ -1,7 +1,7 @@
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { Receipt } from 'mpay'
-import { tempo as tempo_client } from 'mpay/client'
+import { Mpay as Mpay_client, tempo as tempo_client } from 'mpay/client'
 import { Mpay } from 'mpay/hono'
 import { tempo as tempo_server } from 'mpay/server'
 import type { Address } from 'viem'
@@ -9,7 +9,6 @@ import { Addresses } from 'viem/tempo'
 import { beforeAll, beforeEach, describe, expect, test } from 'vitest'
 import { deployEscrow } from '~test/tempo/stream.js'
 import { accounts, asset, client, fundAccount } from '~test/tempo/viem.js'
-import * as Fetch from '../client/internal/Fetch.js'
 import type { ChannelState, ChannelStorage, SessionState } from '../tempo/stream/Storage.js'
 
 function createServer(app: Hono) {
@@ -34,7 +33,8 @@ describe('charge', () => {
     ],
   })
 
-  const fetch = Fetch.from({
+  const { fetch } = Mpay_client.create({
+    polyfill: false,
     methods: [
       tempo_client.charge({
         account: accounts[1],
@@ -128,7 +128,8 @@ describe('stream', () => {
       ],
     })
 
-    const fetch = Fetch.from({
+    const { fetch } = Mpay_client.create({
+      polyfill: false,
       methods: [
         tempo_client.stream({
           account: accounts[2],

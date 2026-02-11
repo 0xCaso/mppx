@@ -1,6 +1,6 @@
 import * as http from 'node:http'
 import { Receipt } from 'mpay'
-import { tempo as tempo_client } from 'mpay/client'
+import { Mpay as Mpay_client, tempo as tempo_client } from 'mpay/client'
 import { Mpay } from 'mpay/nextjs'
 import { tempo as tempo_server } from 'mpay/server'
 import type { Address } from 'viem'
@@ -46,7 +46,8 @@ describe('charge', () => {
     ],
   })
 
-  const fetch = Fetch.from({
+  const { fetch } = Mpay_client.create({
+    polyfill: false,
     methods: [
       tempo_client.charge({
         account: accounts[1],
@@ -141,7 +142,8 @@ describe('stream', () => {
       ],
     })
 
-    const fetch = Fetch.from({
+    const { fetch } = Mpay_client.create({
+      polyfill: false,
       methods: [
         tempo_client.stream({
           account: accounts[2],

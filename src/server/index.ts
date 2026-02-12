@@ -1,6 +1,5 @@
 export * as Expires from '../Expires.js'
-export type { ChannelState, ChannelStorage, Storage } from '../tempo/stream/Storage.js'
-export { channelStorage } from '../tempo/stream/Storage.js'
+export * as Store from '../Store.js'
 export { tempo } from './Methods.js'
 export * as Mpay from './Mpay.js'
 export * as NodeListener from './NodeListener.js'

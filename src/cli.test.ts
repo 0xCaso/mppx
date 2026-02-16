@@ -11,7 +11,7 @@ import { accounts, asset, client, fundAccount } from '~test/tempo/viem.js'
 import * as Store from './Store.js'
 import * as Mppx_server from './server/Mppx.js'
 import { toNodeListener } from './server/Mppx.js'
-import { tempo } from './tempo/server/MethodIntents.js'
+import { tempo } from './tempo/server/Methods.js'
 
 const cliPath = path.resolve(import.meta.dirname, 'cli.ts')
 const cwd = path.resolve(import.meta.dirname, '..')

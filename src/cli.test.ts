@@ -11,6 +11,7 @@ import { accounts, asset, client, fundAccount } from '~test/tempo/viem.js'
 import * as Store from './Store.js'
 import * as Mppx_server from './server/Mppx.js'
 import { toNodeListener } from './server/Mppx.js'
+import { stripe as stripe_server } from './stripe/server/Methods.js'
 import { tempo } from './tempo/server/Methods.js'
 
 const cliPath = path.resolve(import.meta.dirname, 'cli.ts')
@@ -44,12 +45,12 @@ function runRaw(
 
 function runAsync(
   args: string[],
-  options?: { input?: string },
+  options?: { input?: string; env?: NodeJS.ProcessEnv },
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn('node', ['--import', 'tsx', cliPath, ...args], {
       cwd,
-      env,
+      env: options?.env ?? env,
       stdio: ['pipe', 'pipe', 'pipe'],
     })
 
@@ -126,19 +127,36 @@ describe('basic charge (examples/basic)', () => {
     }
   })
 
-  test('error: no account found', { timeout: 60_000 }, () => {
-    const result = spawnSync(
-      'node',
-      ['--import', 'tsx', cliPath, 'http://localhost:1', '--account', 'nonexistent-account'],
-      {
-        encoding: 'utf8',
-        cwd,
-        timeout: 60_000,
+  test('error: no account found', { timeout: 60_000 }, async () => {
+    const server = Mppx_server.create({
+      methods: [tempo.charge({ getClient: () => client })],
+      realm: 'cli-test-no-account',
+      secretKey: 'cli-test-secret',
+    })
+
+    const httpServer = await Http.createServer(async (req, res) => {
+      const result = await toNodeListener(
+        server.charge({
+          amount: '1',
+          currency: asset,
+          expires: new Date(Date.now() + 60_000).toISOString(),
+          recipient: accounts[0].address,
+        }),
+      )(req, res)
+      if (result.status === 402) return
+      res.end('paid')
+    })
+
+    try {
+      const result = await runAsync([httpServer.url, '--account', 'nonexistent-account'], {
+        input: '',
         env: { ...process.env, NODE_NO_WARNINGS: '1' },
-      },
-    )
-    expect(result.status).not.toBe(0)
-    expect(result.stdout).toContain('Account "nonexistent-account" not found')
+      }).catch((err) => err as Error)
+      expect(result).toBeInstanceOf(Error)
+      expect((result as Error).message).toContain('Account "nonexistent-account" not found')
+    } finally {
+      httpServer.close()
+    }
   })
 })
 
@@ -179,7 +197,7 @@ describe('session multi-fetch (examples/session/multi-fetch)', () => {
 
     try {
       const { stdout } = await runAsync(
-        [httpServer.url, '--rpc-url', rpcUrl, '-s', '--deposit', '10'],
+        [httpServer.url, '--rpc-url', rpcUrl, '-s', '-M', 'deposit=10'],
         { input: '' },
       )
       expect(stdout).toContain('scraped-content')
@@ -228,7 +246,7 @@ describe('session multi-fetch (examples/session/multi-fetch)', () => {
       try {
         // First request: open a channel, answer "y" to proceed, "n" to close channel
         const first = await runAsync(
-          [httpServer.url, '--rpc-url', rpcUrl, '--confirm', '--deposit', '10'],
+          [httpServer.url, '--rpc-url', rpcUrl, '--confirm', '-M', 'deposit=10'],
           { input: 'y\nn\n' },
         )
         expect(first.stdout).toContain('scraped-content')
@@ -238,9 +256,18 @@ describe('session multi-fetch (examples/session/multi-fetch)', () => {
         expect(match).toBeTruthy()
         const channelId = match![1]!
 
-        // Second request: reuse the channel via --channel
+        // Second request: reuse the channel via -M channel=<id>
         const second = await runAsync(
-          [httpServer.url, '--rpc-url', rpcUrl, '-s', '--channel', channelId, '--deposit', '10'],
+          [
+            httpServer.url,
+            '--rpc-url',
+            rpcUrl,
+            '-s',
+            '-M',
+            `channel=${channelId}`,
+            '-M',
+            'deposit=10',
+          ],
           { input: '' },
         )
         expect(second.stdout).toContain('scraped-content')
@@ -260,6 +287,53 @@ describe('session multi-fetch (examples/session/multi-fetch)', () => {
       await expect(
         runAsync([httpServer.url, '--rpc-url', rpcUrl, '--fail'], { input: '' }),
       ).rejects.toThrow()
+    } finally {
+      httpServer.close()
+    }
+  })
+})
+
+describe.skipIf(!process.env.VITE_STRIPE_SECRET_KEY)('stripe charge (integration)', () => {
+  test('happy path: makes Stripe payment via real API', { timeout: 120_000 }, async () => {
+    const stripeSecretKey = process.env.VITE_STRIPE_SECRET_KEY!
+
+    const server = Mppx_server.create({
+      methods: [
+        stripe_server.charge({
+          secretKey: stripeSecretKey,
+          networkId: 'internal',
+          paymentMethodTypes: ['card'],
+        }),
+      ],
+      realm: 'cli-test-stripe',
+      secretKey: 'cli-test-secret',
+    })
+
+    const httpServer = await Http.createServer(async (req, res) => {
+      const result = await toNodeListener(
+        server.charge({
+          amount: '1',
+          currency: 'usd',
+          decimals: 2,
+        }),
+      )(req, res)
+      if (result.status === 402) return
+      res.end('paid')
+    })
+
+    try {
+      const { stdout } = await runAsync(
+        [httpServer.url, '-M', 'paymentMethod=pm_card_visa', '-s'],
+        {
+          input: '',
+          env: {
+            ...env,
+            MPPX_STRIPE_SECRET_KEY: stripeSecretKey,
+            MPPX_PRIVATE_KEY: undefined as unknown as string,
+          },
+        },
+      )
+      expect(stdout).toContain('paid')
     } finally {
       httpServer.close()
     }
@@ -313,7 +387,7 @@ describe('session sse (examples/session/sse)', () => {
     })
 
     try {
-      const { stdout } = await runAsync([httpServer.url, '--rpc-url', rpcUrl, '--deposit', '10'], {
+      const { stdout } = await runAsync([httpServer.url, '--rpc-url', rpcUrl, '-M', 'deposit=10'], {
         input: '',
       })
       expect(stdout.trim()).toBe('Hello world!')
@@ -333,6 +407,129 @@ describe('session sse (examples/session/sse)', () => {
       ).rejects.toThrow()
     } finally {
       httpServer.close()
+    }
+  })
+})
+
+describe('stripe charge', () => {
+  test('happy path: makes Stripe payment and receives response', { timeout: 60_000 }, async () => {
+    const mockStripeClient = {
+      paymentIntents: { create: async () => ({ id: 'pi_mock_cli_123', status: 'succeeded' }) },
+    }
+
+    const server = Mppx_server.create({
+      methods: [
+        stripe_server.charge({
+          client: mockStripeClient,
+          networkId: 'internal',
+          paymentMethodTypes: ['card'],
+        }),
+      ],
+      realm: 'cli-test-stripe',
+      secretKey: 'cli-test-secret',
+    })
+
+    const sptServer = await Http.createServer(async (_req, res) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ id: 'spt_mock_cli_test' }))
+    })
+
+    const appServer = await Http.createServer(async (req, res) => {
+      const result = await Mppx_server.toNodeListener(
+        server.charge({ amount: '1', currency: 'usd', decimals: 2 }),
+      )(req, res)
+      if (result.status === 402) return
+      res.end('paid')
+    })
+
+    try {
+      const { stdout } = await runAsync([appServer.url, '-s', '-M', 'paymentMethod=pm_card_visa'], {
+        input: '',
+        env: {
+          ...process.env,
+          NODE_NO_WARNINGS: '1',
+          MPPX_STRIPE_SECRET_KEY: 'sk_test_mock',
+          MPPX_STRIPE_SPT_URL: sptServer.url,
+        },
+      })
+      expect(stdout).toContain('paid')
+    } finally {
+      appServer.close()
+      sptServer.close()
+    }
+  })
+
+  test('error: missing MPPX_STRIPE_SECRET_KEY', { timeout: 60_000 }, async () => {
+    const server = Mppx_server.create({
+      methods: [
+        stripe_server.charge({
+          secretKey: 'sk_test_mock',
+          networkId: 'internal',
+          paymentMethodTypes: ['card'],
+        }),
+      ],
+      realm: 'cli-test-stripe-nokey',
+      secretKey: 'cli-test-secret',
+    })
+
+    const appServer = await Http.createServer(async (req, res) => {
+      const result = await Mppx_server.toNodeListener(
+        server.charge({ amount: '1', currency: 'usd', decimals: 2 }),
+      )(req, res)
+      if (result.status === 402) return
+      res.end('paid')
+    })
+
+    try {
+      const result = await runAsync([appServer.url, '-s', '-M', 'paymentMethod=pm_card_visa'], {
+        input: '',
+        env: {
+          ...process.env,
+          NODE_NO_WARNINGS: '1',
+          MPPX_STRIPE_SECRET_KEY: '',
+        },
+      }).catch((err) => err as Error)
+      expect(result).toBeInstanceOf(Error)
+      expect((result as Error).message).toContain('MPPX_STRIPE_SECRET_KEY')
+    } finally {
+      appServer.close()
+    }
+  })
+
+  test('error: production key rejected', { timeout: 60_000 }, async () => {
+    const server = Mppx_server.create({
+      methods: [
+        stripe_server.charge({
+          secretKey: 'sk_test_mock',
+          networkId: 'internal',
+          paymentMethodTypes: ['card'],
+        }),
+      ],
+      realm: 'cli-test-stripe-live',
+      secretKey: 'cli-test-secret',
+    })
+
+    const appServer = await Http.createServer(async (req, res) => {
+      const result = await Mppx_server.toNodeListener(
+        server.charge({ amount: '1', currency: 'usd', decimals: 2 }),
+      )(req, res)
+      if (result.status === 402) return
+      res.end('paid')
+    })
+
+    try {
+      const result = await runAsync([appServer.url, '-s', '-M', 'paymentMethod=pm_card_visa'], {
+        input: '',
+        env: {
+          ...process.env,
+          NODE_NO_WARNINGS: '1',
+          MPPX_STRIPE_SECRET_KEY: 'sk_live_fake',
+        },
+      }).catch((err) => err as Error)
+      expect(result).toBeInstanceOf(Error)
+      expect((result as Error).message).toContain('test mode')
+    } finally {
+      appServer.close()
     }
   })
 })
@@ -505,24 +702,23 @@ test('mppx --help', () => {
       view     View account address
 
     Options:
-      -a, --account <name>   Account name (env: MPPX_ACCOUNT) 
-      -d, --data <data>      Send request body (implies POST unless -X is set) 
-      -f, --fail             Fail silently on HTTP errors (exit 22) 
-      -i, --include          Include response headers in output 
-      -k, --insecure         Skip TLS certificate verification (true for localhost/.local) 
-      -r, --rpc-url <url>    RPC endpoint, defaults to public RPC for chain (env: MPPX_RPC_URL) 
-      -s, --silent           Silent mode (suppress progress and info) 
-      -v, --verbose          Show request/response headers 
-      -A, --user-agent <ua>  Set User-Agent header 
-      -H, --header <header>  Add header (repeatable) 
-      -L, --location         Follow redirects 
-      -X, --method <method>  HTTP method 
-      --channel <id>         Reuse existing session channel ID 
-      --confirm              Show confirmation prompts 
-      --deposit <amount>     Deposit amount for session payments (human-readable units) 
-      --json <json>          Send JSON body (sets Content-Type and Accept, implies POST) 
-      -V, --version          Display version number 
-      -h, --help             Display this message 
+      -a, --account <name>    Account name (env: MPPX_ACCOUNT) 
+      -d, --data <data>       Send request body (implies POST unless -X is set) 
+      -f, --fail              Fail silently on HTTP errors (exit 22) 
+      -i, --include           Include response headers in output 
+      -k, --insecure          Skip TLS certificate verification (true for localhost/.local) 
+      -r, --rpc-url <url>     RPC endpoint, defaults to public RPC for chain (env: MPPX_RPC_URL) 
+      -s, --silent            Silent mode (suppress progress and info) 
+      -v, --verbose           Show request/response headers 
+      -A, --user-agent <ua>   Set User-Agent header 
+      -H, --header <header>   Add header (repeatable) 
+      -L, --location          Follow redirects 
+      -X, --method <method>   HTTP method 
+      -M, --method-opt <opt>  Method-specific option (key=value, repeatable) 
+      --confirm               Show confirmation prompts 
+      --json <json>           Send JSON body (sets Content-Type and Accept, implies POST) 
+      -V, --version           Display version number 
+      -h, --help              Display this message 
 
     Examples:
     mppx example.com/content

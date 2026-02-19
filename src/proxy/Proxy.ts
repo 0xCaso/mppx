@@ -70,7 +70,7 @@ export function create(config: create.Config): Proxy {
       )
 
     if (request.method === 'GET' && (pathname === '/services' || pathname === '/services/')) {
-      if (wantsMarkdown(request.headers.get('accept')))
+      if (wantsMarkdown(request))
         return new Response(Service.toServicesMarkdown(config.services), {
           headers: { 'Content-Type': 'text/markdown; charset=utf-8' },
         })
@@ -89,7 +89,7 @@ export function create(config: create.Config): Proxy {
       if (request.method === 'GET' && match) {
         const service = config.services.find((s) => s.id === match[1])
         if (!service) return new Response('Not Found', { status: 404 })
-        const wantsText = pathname.endsWith('.md') || wantsMarkdown(request.headers.get('accept'))
+        const wantsText = pathname.endsWith('.md') || wantsMarkdown(request)
         if (wantsText)
           return new Response(Service.toMarkdown(service), {
             headers: { 'Content-Type': 'text/markdown; charset=utf-8' },
@@ -199,7 +199,41 @@ async function proxyUpstream(options: proxyUpstream.Options): Promise<Response> 
   return upstreamRes
 }
 
-function wantsMarkdown(accept: string | null): boolean {
-  if (!accept) return false
-  return accept.includes('text/markdown') || accept.includes('text/plain')
+const aiUserAgents = [
+  'GPTBot',
+  'OAI-SearchBot',
+  'ChatGPT-User',
+  'anthropic-ai',
+  'ClaudeBot',
+  'claude-web',
+  'PerplexityBot',
+  'Perplexity-User',
+  'Google-Extended',
+  'Googlebot',
+  'Bingbot',
+  'Amazonbot',
+  'Applebot',
+  'Applebot-Extended',
+  'FacebookBot',
+  'meta-externalagent',
+  'Bytespider',
+  'DuckAssistBot',
+  'cohere-ai',
+  'AI2Bot',
+  'CCBot',
+  'Diffbot',
+  'YouBot',
+  'MistralAI-User',
+  'GoogleAgent-Mariner',
+]
+
+const terminalUserAgents = ['curl/', 'Wget/', 'HTTPie/', 'httpie-go/', 'xh/']
+
+function wantsMarkdown(request: globalThis.Request): boolean {
+  const accept = request.headers.get('accept')
+  if (accept && (accept.includes('text/markdown') || accept.includes('text/plain'))) return true
+  const ua = request.headers.get('user-agent') ?? ''
+  if (aiUserAgents.some((agent) => ua.includes(agent))) return true
+  if (terminalUserAgents.some((agent) => ua.includes(agent))) return true
+  return false
 }

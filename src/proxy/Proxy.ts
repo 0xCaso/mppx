@@ -69,7 +69,23 @@ export function create(config: create.Config): Proxy {
         { headers: { 'Content-Type': 'text/plain; charset=utf-8' } },
       )
 
-    if (request.method === 'GET' && (pathname === '/services' || pathname === '/services/')) {
+    if (request.method === 'GET' && (pathname === '/discover' || pathname === '/discover/')) {
+      if (wantsMarkdown(request))
+        return new Response(Service.toDiscoverMarkdown(config.services), {
+          headers: { 'Content-Type': 'text/markdown; charset=utf-8' },
+        })
+      return Response.json(config.services.map(Service.serialize))
+    }
+
+    if (request.method === 'GET' && pathname === '/discover.md')
+      return new Response(Service.toDiscoverMarkdown(config.services), {
+        headers: { 'Content-Type': 'text/markdown; charset=utf-8' },
+      })
+
+    if (
+      request.method === 'GET' &&
+      (pathname === '/discover/all' || pathname === '/discover/all/')
+    ) {
       if (wantsMarkdown(request))
         return new Response(Service.toServicesMarkdown(config.services), {
           headers: { 'Content-Type': 'text/markdown; charset=utf-8' },
@@ -77,7 +93,7 @@ export function create(config: create.Config): Proxy {
       return Response.json(config.services.map(Service.serialize))
     }
 
-    if (request.method === 'GET' && pathname === '/services.md')
+    if (request.method === 'GET' && pathname === '/discover/all.md')
       return new Response(Service.toServicesMarkdown(config.services), {
         headers: { 'Content-Type': 'text/markdown; charset=utf-8' },
       })
@@ -85,7 +101,7 @@ export function create(config: create.Config): Proxy {
     {
       // List service
       const match =
-        pathname.match(/^\/services\/([^/]+)\.md$/) ?? pathname.match(/^\/services\/([^/]+)\/?$/)
+        pathname.match(/^\/discover\/([^/]+)\.md$/) ?? pathname.match(/^\/discover\/([^/]+)\/?$/)
       if (request.method === 'GET' && match) {
         const service = config.services.find((s) => s.id === match[1])
         if (!service) return new Response('Not Found', { status: 404 })

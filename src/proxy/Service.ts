@@ -193,12 +193,29 @@ export function toLlmsTxt(
 
   if (services.length === 0) return lines.join('\n')
 
-  lines.push('## [Services](/services.md)', '')
+  lines.push('## [Services](/discover)', '')
   for (const s of services) {
     const label = s.title ?? s.id
     const desc = s.description ? `: ${s.description}` : ''
-    lines.push(`- [${label}](/services/${s.id}.md)${desc}`)
+    lines.push(`- [${label}](/discover/${s.id}.md)${desc}`)
   }
+  lines.push('', '[See all services](/discover/all.md)')
+
+  return lines.join('\n')
+}
+
+/** Renders a brief markdown listing of services with links. */
+export function toDiscoverMarkdown(services: Service[]): string {
+  const lines: string[] = ['# Services', '']
+
+  if (services.length === 0) return lines.join('\n')
+
+  for (const s of services) {
+    const label = s.title ?? s.id
+    const desc = s.description ? `: ${s.description}` : ''
+    lines.push(`- [${label}](/discover/${s.id}.md)${desc}`)
+  }
+  lines.push('', '[See all services](/discover/all.md)')
 
   return lines.join('\n')
 }
@@ -210,7 +227,7 @@ export function toServicesMarkdown(services: Service[]): string {
   if (services.length === 0) return lines.join('\n')
 
   for (const s of services) {
-    lines.push(`## [${s.title ?? s.id}](/services/${s.id}.md)`, '')
+    lines.push(`## [${s.title ?? s.id}](/discover/${s.id}.md)`, '')
     if (s.description) lines.push(s.description, '')
     pushRoutes(lines, s)
   }

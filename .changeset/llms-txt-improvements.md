@@ -1,8 +1,9 @@
 ---
-"mppx": patch
+"mppx": minor
 ---
 
-- Simplified `llms.txt` to a brief service overview, linking each service to `/services/<id>`.
-- Added `/services.md` and `/services/<id>.md` markdown endpoints with full route details.
-- Added `Accept: text/markdown` / `text/plain` content negotiation on `/services` and `/services/<id>`.
-- Auto-detect AI bots (GPTBot, ClaudeBot, etc.) and CLI tools (curl, wget, HTTPie) via `User-Agent` to serve markdown.
+- **`mpp/proxy` (Breaking):** Renamed `/services*` discovery routes to `/discover*`.
+- `mpp/proxy`: Simplified `llms.txt` to a brief service overview, linking each service to `/discover/<id>`.
+- `mpp/proxy`: Added `/discover` and `/discover/<id>` endpoints with content negotiation (JSON by default, markdown for `Accept: text/markdown`/`text/plain` or bot/CLI user agents).
+- `mpp/proxy`: Added `.md` extension variants (`/discover.md`, `/discover/<id>.md`) for explicit markdown.
+- `mpp/proxy`: Added `/discover/all` for full markdown listing with route details.

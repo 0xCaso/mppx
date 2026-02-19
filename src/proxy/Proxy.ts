@@ -60,10 +60,7 @@ export function create(config: create.Config): Proxy {
 
     if (!pathname) return new Response('Not Found', { status: 404 })
 
-    if (
-      request.method === 'GET' &&
-      (pathname === '/discover' || pathname === '/discover/' || pathname === '/llms.txt')
-    )
+    if (request.method === 'GET' && pathname === '/llms.txt')
       return new Response(
         Service.toLlmsTxt(config.services, {
           title: config.title,
@@ -71,6 +68,18 @@ export function create(config: create.Config): Proxy {
         }),
         { headers: { 'Content-Type': 'text/plain; charset=utf-8' } },
       )
+
+    if (request.method === 'GET' && (pathname === '/discover' || pathname === '/discover/')) {
+      if (wantsMarkdown(request))
+        return new Response(
+          Service.toLlmsTxt(config.services, {
+            title: config.title,
+            description: config.description,
+          }),
+          { headers: { 'Content-Type': 'text/plain; charset=utf-8' } },
+        )
+      return Response.json(config.services.map(Service.serialize))
+    }
 
     if (
       request.method === 'GET' &&

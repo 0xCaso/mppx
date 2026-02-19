@@ -61,7 +61,7 @@ function createUpstream(handler: (req: Request) => Response | Promise<Response>)
 }
 
 describe('create', () => {
-  test('behavior: GET /discover returns service discovery', async () => {
+  test('behavior: GET /discover/all returns service discovery JSON', async () => {
     const proxy = ApiProxy.create({
       services: [
         Service.from('api', {
@@ -80,7 +80,7 @@ describe('create', () => {
     })
     proxyServer = await Http.createServer(proxy.listener)
 
-    const res = await fetch(`${proxyServer.url}/discover`)
+    const res = await fetch(`${proxyServer.url}/discover/all`)
     expect(res.status).toBe(200)
     expect(await res.json()).toMatchInlineSnapshot(`
       [
@@ -129,7 +129,25 @@ describe('create', () => {
     `)
   })
 
-  test('behavior: GET /discover returns llms.txt', async () => {
+  test('behavior: GET /discover returns JSON by default', async () => {
+    const proxy = ApiProxy.create({
+      services: [
+        Service.from('api', {
+          baseUrl: 'https://api.example.com',
+          routes: {
+            'GET /v1/models': true,
+          },
+        }),
+      ],
+    })
+    proxyServer = await Http.createServer(proxy.listener)
+
+    const res = await fetch(`${proxyServer.url}/discover`)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toMatchInlineSnapshot(`"application/json"`)
+  })
+
+  test('behavior: GET /discover returns llms.txt for markdown clients', async () => {
     const proxy = ApiProxy.create({
       title: 'My AI Gateway',
       description: 'A paid proxy for LLM and AI services.',
@@ -165,7 +183,9 @@ describe('create', () => {
     })
     proxyServer = await Http.createServer(proxy.listener)
 
-    const res = await fetch(`${proxyServer.url}/discover`)
+    const res = await fetch(`${proxyServer.url}/discover`, {
+      headers: { Accept: 'text/plain' },
+    })
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toBe('text/plain; charset=utf-8')
     expect(await res.text()).toMatchInlineSnapshot(`

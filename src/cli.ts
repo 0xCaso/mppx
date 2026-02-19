@@ -79,7 +79,7 @@ cli
     if (silent) options.confirm = false
 
     const accountName = resolveAccountName(options.account)
-    const privateKey = process.env.MPPX_PRIVATE_KEY ?? (await createKeychain(accountName).get())
+    const privateKey = process.env.MPPX_PRIVATE_KEY || (await createKeychain(accountName).get())
     if (!privateKey) {
       if (options.account) console.log(`Account "${accountName}" not found.`)
       else console.log(`No account found.`)
@@ -158,7 +158,7 @@ cli
       }
 
       const account = privateKeyToAccount(privateKey as `0x${string}`)
-      const rpcUrl = options.rpcUrl ?? process.env.MPPX_RPC_URL
+      const rpcUrl = options.rpcUrl ?? (process.env.MPPX_RPC_URL || undefined)
       const client = createClient({
         chain: await resolveChain({ ...options, rpcUrl }),
         transport: http(rpcUrl),
@@ -785,7 +785,11 @@ cli
         const accounts = await createKeychain().list()
         if (accounts.length === 1) createDefaultStore().set(resolvedName)
         console.log(`Account "${resolvedName}" saved to keychain.`)
-        console.log(pc.dim(`Address ${account.address}`))
+        const explorerUrl = tempoMainnet.blockExplorers?.default?.url
+        const addrDisplay = explorerUrl
+          ? pc.link(`${explorerUrl}/address/${account.address}`, account.address)
+          : account.address
+        console.log(pc.dim(`Address ${addrDisplay}`))
         resolveChain(options)
           .then((chain) => createClient({ chain, transport: http(options.rpcUrl) }))
           .then((client) =>
@@ -824,8 +828,12 @@ cli
         const account = privateKeyToAccount(key as `0x${string}`)
         const balanceLines = await fetchBalanceLines(account.address, { includeTestnet: false })
         if (!options.yes) {
+          const explorerUrl = tempoMainnet.blockExplorers?.default?.url
+          const addrDisplay = explorerUrl
+            ? pc.link(`${explorerUrl}/address/${account.address}`, account.address)
+            : account.address
           process.stderr.write(pc.dim(`Delete account "${options.account}"\n`))
-          process.stderr.write(pc.dim(`  Address  ${account.address}\n`))
+          process.stderr.write(pc.dim(`  Address  ${addrDisplay}\n`))
           for (let i = 0; i < balanceLines.length; i++)
             process.stderr.write(
               pc.dim(`  ${i === 0 ? 'Balance' : '       '}  ${balanceLines[i]}\n`),
@@ -898,6 +906,7 @@ cli
           }),
         )
         const resolved = entries.filter((e) => e !== undefined)
+        const explorerUrl = tempoMainnet.blockExplorers?.default?.url
         const maxWidth = Math.max(
           ...resolved.map((e) => e.name.length + (e.name === currentDefault ? 1 : 0)),
         )
@@ -905,7 +914,10 @@ cli
           const isDefault = entry.name === currentDefault
           const label = isDefault ? `${entry.name}${pc.dim('*')}` : entry.name
           const width = entry.name.length + (isDefault ? 1 : 0)
-          console.log(`${label}${' '.repeat(maxWidth - width + 2)}${pc.dim(entry.address)}`)
+          const addrDisplay = explorerUrl
+            ? pc.link(`${explorerUrl}/address/${entry.address}`, entry.address)
+            : entry.address
+          console.log(`${label}${' '.repeat(maxWidth - width + 2)}${pc.dim(addrDisplay)}`)
         }
         return
       }
@@ -919,10 +931,14 @@ cli
           process.exit(1)
         }
         const account = privateKeyToAccount(key as `0x${string}`)
-        console.log(`${pc.dim('Address')}  ${account.address}`)
+        const rpcUrl = options.rpcUrl ?? (process.env.MPPX_RPC_URL || undefined)
+        const chain = rpcUrl ? await resolveChain({ rpcUrl }) : tempoMainnet
+        const explorerUrl = chain.blockExplorers?.default?.url
+        const addrDisplay = explorerUrl
+          ? pc.link(`${explorerUrl}/address/${account.address}`, account.address)
+          : account.address
+        console.log(`${pc.dim('Address')}  ${addrDisplay}`)
 
-        const rpcUrl = options.rpcUrl ?? process.env.MPPX_RPC_URL
-        const chain = rpcUrl ? await resolveChain({ rpcUrl }) : undefined
         const balanceLines = await fetchBalanceLines(
           account.address,
           chain && rpcUrl ? { chain, rpcUrl } : undefined,
@@ -1055,7 +1071,7 @@ function createDefaultStore() {
 
 function resolveAccountName(explicit?: string): string {
   if (explicit) return explicit
-  if (process.env.MPPX_ACCOUNT) return process.env.MPPX_ACCOUNT
+  if (process.env.MPPX_ACCOUNT?.trim()) return process.env.MPPX_ACCOUNT
   return createDefaultStore().get()
 }
 
@@ -1239,9 +1255,9 @@ const pc = (() => {
     bgMagentaBright: f('\x1b[105m', '\x1b[49m'),
     bgCyanBright: f('\x1b[106m', '\x1b[49m'),
     bgWhiteBright: f('\x1b[107m', '\x1b[49m'),
-    link(url: string, text: string) {
+    link(url: string, text: string, noUnderline?: boolean) {
       if (!isColorSupported) return text
-      return `\x1b]8;;${url}\x07${pc.underline(text)}\x1b]8;;\x07`
+      return `\x1b]8;;${url}\x07${noUnderline ? text : pc.underline(text)}\x1b]8;;\x07`
     },
   }
 })()
@@ -1269,6 +1285,8 @@ function chainName(chain: { id: number; name: string }) {
 }
 
 const pathUsd = '0x20c0000000000000000000000000000000000000' as Address
+const usdcE = '0x20C000000000000000000000b9537d11c60E8b50' as Address
+const mainnetTokens = [pathUsd, usdcE] as const
 const testnetTokens = [
   '0x20c0000000000000000000000000000000000000',
   '0x20c0000000000000000000000000000000000001',
@@ -1276,11 +1294,20 @@ const testnetTokens = [
   '0x20c0000000000000000000000000000000000003',
 ] as const
 
-function fmtBalance(b: bigint, symbol: string, decimals = 6) {
+function fmtBalance(
+  b: bigint,
+  symbol: string,
+  decimals = 6,
+  opts?: { explorerUrl?: string | undefined; token?: string | undefined },
+) {
   const value = Number(b) / 10 ** decimals
   const [int, dec] = value.toString().split('.')
   const formatted = int!.replace(/\B(?=(\d{3})+(?!\d))/g, '_')
-  return `${dec ? `${formatted}.${dec}` : formatted} ${pc.dim(symbol)}`
+  const sym =
+    opts?.explorerUrl && opts.token
+      ? pc.dim(pc.link(`${opts.explorerUrl}/token/${opts.token}`, symbol, true))
+      : pc.dim(symbol)
+  return `${dec ? `${formatted}.${dec}` : formatted} ${sym}`
 }
 
 function isTestnet(chain: Chain) {
@@ -1297,9 +1324,13 @@ async function fetchTokenInfo(
     Actions.token.getBalance(client, { account, token }).catch(() => 0n),
     Actions.token.getMetadata(client, { token }).catch(() => ({ symbol: token as string })),
   ])
-  const symbol = token === pathUsd ? 'PathUSD' : metadata.symbol
+  const knownSymbols: Record<string, string> = {
+    [pathUsd]: 'PathUSD',
+    [usdcE]: 'USDC.e',
+  }
+  const symbol = knownSymbols[token] ?? metadata.symbol
   const decimals = 'decimals' in metadata ? metadata.decimals : 6
-  return { balance, symbol, decimals }
+  return { balance, symbol, decimals, token }
 }
 
 function detectTerminalBg(
@@ -1341,6 +1372,7 @@ async function fetchBalanceLines(
 ): Promise<string[]> {
   if (opts?.chain) {
     const client = createClient({ chain: opts.chain, transport: http(opts.rpcUrl) })
+    const explorerUrl = opts.chain.blockExplorers?.default?.url
     const label = pc.dim(`(${chainName(opts.chain)})`)
     if (isTestnet(opts.chain)) {
       const results = await Promise.all(
@@ -1348,24 +1380,46 @@ async function fetchBalanceLines(
       )
       return results
         .filter((t) => t.balance > 0n)
-        .map((t) => `${fmtBalance(t.balance, t.symbol, t.decimals)} ${label}`)
+        .map(
+          (t) =>
+            `${fmtBalance(t.balance, t.symbol, t.decimals, { explorerUrl, token: t.token })} ${label}`,
+        )
     }
-    const { balance, symbol, decimals } = await fetchTokenInfo(client, pathUsd, address)
-    return [`${fmtBalance(balance, symbol, decimals)} ${label}`]
+    const results = await Promise.all(
+      mainnetTokens.map((token) => fetchTokenInfo(client, token, address)),
+    )
+    return results.map(
+      (t) =>
+        `${fmtBalance(t.balance, t.symbol, t.decimals, { explorerUrl, token: t.token })} ${label}`,
+    )
   }
 
-  const mainnetClient = createClient({ chain: tempoMainnet, transport: http() })
-  const mainnetInfo = await fetchTokenInfo(mainnetClient, pathUsd, address)
-  const lines = [fmtBalance(mainnetInfo.balance, mainnetInfo.symbol, mainnetInfo.decimals)]
+  const mainnetClient = createClient({
+    chain: tempoMainnet,
+    transport: http(process.env.MPPX_RPC_URL || undefined),
+  })
+  const mainnetExplorerUrl = tempoMainnet.blockExplorers?.default?.url
+  const mainnetResults = await Promise.all(
+    mainnetTokens.map((token) => fetchTokenInfo(mainnetClient, token, address)),
+  )
+  const lines = mainnetResults.map((t) =>
+    fmtBalance(t.balance, t.symbol, t.decimals, {
+      explorerUrl: mainnetExplorerUrl,
+      token: t.token,
+    }),
+  )
 
   if (opts?.includeTestnet !== false) {
     const testnetClient = createClient({ chain: tempoModerato, transport: http() })
+    const testnetExplorerUrl = tempoModerato.blockExplorers?.default?.url
     const testnetResults = await Promise.all(
       testnetTokens.map((token) => fetchTokenInfo(testnetClient, token, address)),
     )
     for (const t of testnetResults) {
       if (t.balance > 0n)
-        lines.push(`${fmtBalance(t.balance, t.symbol, t.decimals)} ${pc.dim('(testnet)')}`)
+        lines.push(
+          `${fmtBalance(t.balance, t.symbol, t.decimals, { explorerUrl: testnetExplorerUrl, token: t.token })} ${pc.dim('(testnet)')}`,
+        )
     }
   }
 

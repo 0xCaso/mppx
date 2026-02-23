@@ -61,6 +61,7 @@ const res = await fetch('https://mpp.sh/api/ping/paid')
 | [charge](./examples/charge/) | Payment-gated photo generation API |
 | [session/multi-fetch](./examples/session/multi-fetch/) | Multiple paid requests over a single payment channel |
 | [session/sse](./examples/session/sse/) | Pay-per-token LLM streaming with SSE |
+| [stripe](./examples/stripe/) | Stripe SPT charge with automatic client |
 
 ```bash
 npx gitpick wevm/mppx/examples/charge

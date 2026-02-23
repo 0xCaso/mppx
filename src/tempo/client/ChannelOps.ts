@@ -47,7 +47,7 @@ export function resolveEscrow(
   const escrow =
     challengeEscrow ??
     escrowContractOverride ??
-    ((defaults.escrowContract as Record<number, string>)[chainId] as Address | undefined)
+    defaults.escrowContract[chainId as keyof typeof defaults.escrowContract]
   if (!escrow)
     throw new Error(
       'No `escrowContract` available. Provide it in parameters or ensure the server challenge includes it.',

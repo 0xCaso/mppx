@@ -1,36 +1,35 @@
 import { describe, expect, test } from 'vitest'
 import {
+  chainId,
+  currency,
   decimals,
-  defaultCurrencyForChain,
   escrowContract,
-  mainnetChainId,
-  pathUsd,
+  resolveCurrency,
   rpcUrl,
-  testnetChainId,
-  usdc,
+  tokens,
 } from './defaults.js'
 
 describe('chain ID constants', () => {
-  test('mainnetChainId is 4217', () => {
-    expect(mainnetChainId).toBe(4217)
+  test('mainnet is 4217', () => {
+    expect(chainId.mainnet).toBe(4217)
   })
 
-  test('testnetChainId is 42431', () => {
-    expect(testnetChainId).toBe(42431)
+  test('testnet is 42431', () => {
+    expect(chainId.testnet).toBe(42431)
   })
 })
 
 describe('token address constants', () => {
   test('usdc address', () => {
-    expect(usdc).toBe('0x20C000000000000000000000b9537d11c60E8b50')
+    expect(tokens.usdc).toBe('0x20C000000000000000000000b9537d11c60E8b50')
   })
 
   test('pathUsd address', () => {
-    expect(pathUsd).toBe('0x20c0000000000000000000000000000000000000')
+    expect(tokens.pathUsd).toBe('0x20c0000000000000000000000000000000000000')
   })
 
   test('usdc and pathUsd are different addresses', () => {
-    expect(usdc).not.toBe(pathUsd)
+    expect(tokens.usdc).not.toBe(tokens.pathUsd)
   })
 
   test('decimals is 6', () => {
@@ -40,58 +39,56 @@ describe('token address constants', () => {
 
 describe('rpcUrl', () => {
   test('mainnet RPC URL', () => {
-    expect(rpcUrl[mainnetChainId]).toBe('https://rpc.tempo.xyz')
+    expect(rpcUrl[chainId.mainnet]).toBe('https://rpc.tempo.xyz')
   })
 
   test('testnet RPC URL', () => {
-    expect(rpcUrl[testnetChainId]).toBe('https://rpc.moderato.tempo.xyz')
+    expect(rpcUrl[chainId.testnet]).toBe('https://rpc.moderato.tempo.xyz')
   })
 })
 
 describe('escrowContract', () => {
   test('mainnet escrow contract', () => {
-    expect(escrowContract[mainnetChainId]).toBe('0x0901aED692C755b870F9605E56BAA66C35BEfF69')
+    expect(escrowContract[chainId.mainnet]).toBe('0x0901aED692C755b870F9605E56BAA66C35BEfF69')
   })
 
   test('testnet escrow contract', () => {
-    expect(escrowContract[testnetChainId]).toBe('0x542831e3E4Ace07559b7C8787395f4Fb99F70787')
+    expect(escrowContract[chainId.testnet]).toBe('0x542831e3E4Ace07559b7C8787395f4Fb99F70787')
   })
 })
 
-describe('defaultCurrencyForChain', () => {
+describe('currency', () => {
   test('mainnet (4217) returns USDC', () => {
-    expect(defaultCurrencyForChain(mainnetChainId)).toBe(usdc)
+    expect(currency[chainId.mainnet]).toBe(tokens.usdc)
   })
 
   test('testnet (42431) returns pathUSD', () => {
-    expect(defaultCurrencyForChain(testnetChainId)).toBe(pathUsd)
-  })
-
-  test('undefined returns pathUSD', () => {
-    expect(defaultCurrencyForChain(undefined)).toBe(pathUsd)
-  })
-
-  test('unknown chain ID returns pathUSD', () => {
-    expect(defaultCurrencyForChain(999999)).toBe(pathUsd)
-  })
-
-  test('zero chain ID returns pathUSD', () => {
-    expect(defaultCurrencyForChain(0)).toBe(pathUsd)
-  })
-
-  test('negative chain ID returns pathUSD', () => {
-    expect(defaultCurrencyForChain(-1)).toBe(pathUsd)
-  })
-
-  test('returns consistent values across repeated calls', () => {
-    const first = defaultCurrencyForChain(mainnetChainId)
-    const second = defaultCurrencyForChain(mainnetChainId)
-    expect(first).toBe(second)
+    expect(currency[chainId.testnet]).toBe(tokens.pathUsd)
   })
 
   test('mainnet and testnet return different currencies', () => {
-    expect(defaultCurrencyForChain(mainnetChainId)).not.toBe(
-      defaultCurrencyForChain(testnetChainId),
-    )
+    expect(currency[chainId.mainnet]).not.toBe(currency[chainId.testnet])
+  })
+})
+
+describe('resolveCurrency', () => {
+  test('defaults to USDC (mainnet)', () => {
+    expect(resolveCurrency({})).toBe(tokens.usdc)
+  })
+
+  test('testnet: true returns pathUSD', () => {
+    expect(resolveCurrency({ testnet: true })).toBe(tokens.pathUsd)
+  })
+
+  test('testnet: false returns USDC', () => {
+    expect(resolveCurrency({ testnet: false })).toBe(tokens.usdc)
+  })
+
+  test('chainId takes precedence over testnet', () => {
+    expect(resolveCurrency({ chainId: chainId.testnet, testnet: false })).toBe(tokens.pathUsd)
+  })
+
+  test('unknown chainId falls back to pathUSD', () => {
+    expect(resolveCurrency({ chainId: 999999 })).toBe(tokens.pathUsd)
   })
 })

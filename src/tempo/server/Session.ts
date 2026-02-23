@@ -85,13 +85,7 @@ export function session<const parameters extends session.Parameters>(p?: paramet
   const parameters = p as parameters
   const {
     amount,
-    currency = defaults.defaultCurrencyForChain(
-      parameters.testnet === true
-        ? defaults.testnetChainId
-        : parameters.testnet === false
-          ? defaults.mainnetChainId
-          : undefined,
-    ),
+    currency = defaults.resolveCurrency(parameters),
     decimals = defaults.decimals,
     store: rawStore = Store.memory(),
     suggestedDeposit,
@@ -133,7 +127,7 @@ export function session<const parameters extends session.Parameters>(p?: paramet
       // Extract chainId from request or default.
       const chainId = await (async () => {
         if (request.chainId) return request.chainId
-        if (parameters.testnet) return defaults.testnetChainId
+        if (parameters.testnet) return defaults.chainId.testnet
         return (await getClient({})).chain?.id
       })()
 

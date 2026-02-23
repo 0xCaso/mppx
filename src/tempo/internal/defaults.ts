@@ -1,35 +1,24 @@
-export const mainnetChainId = 4217
-export const testnetChainId = 42431
+import type { ValueOf } from '../../internal/types.js'
 
-export type ChainId = typeof mainnetChainId | typeof testnetChainId
+export const chainId = {
+  mainnet: 4217,
+  testnet: 42431,
+} as const
+export type ChainId = ValueOf<typeof chainId>
 
-export const rpcUrl: Record<ChainId, string> = {
-  [mainnetChainId]: 'https://rpc.tempo.xyz',
-  [testnetChainId]: 'https://rpc.moderato.tempo.xyz',
-}
+/** Token addresses. */
+export const tokens = {
+  /** USDC (USDC.e) token address. */
+  usdc: '0x20C000000000000000000000b9537d11c60E8b50',
+  /** pathUSD token address. */
+  pathUsd: '0x20c0000000000000000000000000000000000000',
+} as const
 
-export const escrowContract: Record<ChainId, `0x${string}`> = {
-  [mainnetChainId]: '0x0901aED692C755b870F9605E56BAA66C35BEfF69',
-  [testnetChainId]: '0x542831e3E4Ace07559b7C8787395f4Fb99F70787',
-}
-
-/** USDC (USDC.e) token address on Tempo. */
-export const usdc = '0x20C000000000000000000000b9537d11c60E8b50'
-
-/** pathUSD token address on Tempo. */
-export const pathUsd = '0x20c0000000000000000000000000000000000000'
-
-/** Chain ID → default currency. Mainnet uses USDC, everything else uses pathUSD. */
-const defaultCurrencies: Record<ChainId, string> = {
-  [mainnetChainId]: usdc,
-  [testnetChainId]: pathUsd,
-}
-
-/** Returns the default currency for a chain ID. USDC for mainnet (4217), pathUSD otherwise. */
-export function defaultCurrencyForChain(chainId: number | undefined): string {
-  if (chainId === undefined) return pathUsd
-  return defaultCurrencies[chainId as ChainId] ?? pathUsd
-}
+/** Chain ID → default currency. */
+export const currency = {
+  [chainId.mainnet]: tokens.usdc,
+  [chainId.testnet]: tokens.pathUsd,
+} as const satisfies Record<ChainId, string>
 
 /**
  * Default token decimals for TIP-20 stablecoins (e.g. pathUSD, USDC).
@@ -39,3 +28,26 @@ export function defaultCurrencyForChain(chainId: number | undefined): string {
  * runtimes should set `decimals` explicitly to match their token.
  */
 export const decimals = 6
+
+/** Default payment-channel escrow contract addresses per chain. */
+export const escrowContract = {
+  [chainId.mainnet]: '0x0901aED692C755b870F9605E56BAA66C35BEfF69',
+  [chainId.testnet]: '0x542831e3E4Ace07559b7C8787395f4Fb99F70787',
+} as const satisfies Record<ChainId, string>
+
+/** Default RPC URLs for each Tempo chain. */
+export const rpcUrl = {
+  [chainId.mainnet]: 'https://rpc.tempo.xyz',
+  [chainId.testnet]: 'https://rpc.moderato.tempo.xyz',
+} as const satisfies Record<ChainId, string>
+
+/** Resolves the default currency. */
+export function resolveCurrency(parameters: {
+  /** Chain ID. */
+  chainId?: number | undefined
+  /** Whether in testnet mode. */
+  testnet?: boolean | undefined
+}): string {
+  const id = parameters.chainId ?? (parameters.testnet ? chainId.testnet : chainId.mainnet)
+  return currency[id as keyof typeof currency] ?? tokens.pathUsd
+}

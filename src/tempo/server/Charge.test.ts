@@ -657,6 +657,16 @@ describe('tempo', () => {
   })
 
   describe('default currency resolution', () => {
+    test('mainnet (default) resolves to USDC', () => {
+      const method = tempo_server.charge({
+        getClient: () => client,
+        account: accounts[0].address,
+      })
+      expect((method.defaults as Record<string, unknown>)?.currency).toBe(
+        '0x20C000000000000000000000b9537d11c60E8b50',
+      )
+    })
+
     test('testnet: true defaults to pathUSD', () => {
       const method = tempo_server.charge({
         getClient: () => client,
@@ -668,21 +678,11 @@ describe('tempo', () => {
       )
     })
 
-    test('testnet: false (explicit mainnet) defaults to USDC', () => {
+    test('unknown chain defaults to pathUSD', () => {
       const method = tempo_server.charge({
         getClient: () => client,
         account: accounts[0].address,
-        testnet: false,
-      })
-      expect((method.defaults as Record<string, unknown>)?.currency).toBe(
-        '0x20C000000000000000000000b9537d11c60E8b50',
-      )
-    })
-
-    test('testnet: undefined defaults to pathUSD', () => {
-      const method = tempo_server.charge({
-        getClient: () => client,
-        account: accounts[0].address,
+        chainId: 69420,
       })
       expect((method.defaults as Record<string, unknown>)?.currency).toBe(
         '0x20c0000000000000000000000000000000000000',
@@ -707,13 +707,12 @@ describe('tempo', () => {
       expect((method.defaults as Record<string, unknown>)?.decimals).toBe(6)
     })
 
-    test('challenge contains USDC currency when testnet: false', async () => {
+    test('challenge contains USDC currency (mainnet default)', async () => {
       const handler = Mppx_server.create({
         methods: [
           tempo_server.charge({
             getClient: () => client,
             account: accounts[0].address,
-            testnet: false,
           }),
         ],
         realm,
@@ -739,7 +738,6 @@ describe('tempo', () => {
             getClient: () => client,
             account: accounts[0].address,
             testnet: true,
-            chainId: chain.id,
           }),
         ],
         realm,
@@ -758,12 +756,13 @@ describe('tempo', () => {
       expect(challenge.request.currency).toBe('0x20c0000000000000000000000000000000000000')
     })
 
-    test('challenge contains pathUSD currency when testnet is omitted', async () => {
+    test('challenge contains pathUSD currency (unknown chain)', async () => {
       const handler = Mppx_server.create({
         methods: [
           tempo_server.charge({
             getClient: () => client,
             account: accounts[0].address,
+            chainId: 69420,
           }),
         ],
         realm,

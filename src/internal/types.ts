@@ -401,3 +401,14 @@ export type Distribute<U, R> = U extends infer member ? (response: member) => R 
 
 /** @internal */
 export type Flatten<element> = element extends readonly (infer item)[] ? item : element
+
+/**
+ * @description Creates a type that extracts the values of T.
+ *
+ * @example
+ * ValueOf<{ a: string, b: number }>
+ * => string | number
+ *
+ * @internal
+ */
+export type ValueOf<T> = T[keyof T]

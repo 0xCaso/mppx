@@ -40,13 +40,7 @@ export function charge<const parameters extends charge.Parameters>(
 ) {
   const {
     amount,
-    currency = defaults.defaultCurrencyForChain(
-      parameters.testnet === true
-        ? defaults.testnetChainId
-        : parameters.testnet === false
-          ? defaults.mainnetChainId
-          : undefined,
-    ),
+    currency = defaults.resolveCurrency(parameters),
     decimals = defaults.decimals,
     description,
     externalId,
@@ -77,7 +71,7 @@ export function charge<const parameters extends charge.Parameters>(
     async request({ credential, request }) {
       const chainId = await (async () => {
         if (request.chainId) return request.chainId
-        if (parameters.testnet) return defaults.testnetChainId
+        if (parameters.testnet) return defaults.chainId.testnet
         return (await getClient({})).chain?.id
       })()
 

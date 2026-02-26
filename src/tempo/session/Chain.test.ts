@@ -1,4 +1,5 @@
 import { type Address, encodeFunctionData, erc20Abi, type Hex } from 'viem'
+import { waitForTransactionReceipt } from 'viem/actions'
 import { Addresses, Transaction } from 'viem/tempo'
 import { beforeAll, describe, expect, test } from 'vitest'
 import {
@@ -70,7 +71,6 @@ describe('assertUint128 (via settleOnChain / closeOnChain)', () => {
 
 describe('on-chain', () => {
   const payer = accounts[2]
-  const feePayerAccount = accounts[1]
   const recipient = accounts[0].address
   const currency = asset
 
@@ -81,7 +81,6 @@ describe('on-chain', () => {
     escrowContract = await deployEscrow()
     await fundAccount({ address: payer.address, token: Addresses.pathUsd })
     await fundAccount({ address: payer.address, token: currency })
-    await fundAccount({ address: feePayerAccount.address, token: Addresses.pathUsd })
   })
 
   function nextSalt(): Hex {
@@ -541,6 +540,7 @@ describe('on-chain', () => {
       })
 
       expect(txHash).toBeDefined()
+      await waitForTransactionReceipt(client, { hash: txHash })
       const channel = await getOnChainChannel(client, escrowContract, channelId)
       expect(channel.settled).toBe(settleAmount)
       expect(channel.finalized).toBe(false)
@@ -568,13 +568,19 @@ describe('on-chain', () => {
         chain.id,
       )
 
-      const txHash = await settleOnChain(client, escrowContract, {
-        channelId,
-        cumulativeAmount: settleAmount,
-        signature,
-      }, feePayerAccount)
+      const txHash = await settleOnChain(
+        client,
+        escrowContract,
+        {
+          channelId,
+          cumulativeAmount: settleAmount,
+          signature,
+        },
+        accounts[0],
+      )
 
       expect(txHash).toBeDefined()
+      await waitForTransactionReceipt(client, { hash: txHash })
       const channel = await getOnChainChannel(client, escrowContract, channelId)
       expect(channel.settled).toBe(settleAmount)
       expect(channel.finalized).toBe(false)
@@ -611,6 +617,7 @@ describe('on-chain', () => {
       })
 
       expect(txHash).toBeDefined()
+      await waitForTransactionReceipt(client, { hash: txHash })
       const channel = await getOnChainChannel(client, escrowContract, channelId)
       expect(channel.finalized).toBe(true)
     })
@@ -637,13 +644,20 @@ describe('on-chain', () => {
         chain.id,
       )
 
-      const txHash = await closeOnChain(client, escrowContract, {
-        channelId,
-        cumulativeAmount: closeAmount,
-        signature,
-      }, undefined, feePayerAccount)
+      const txHash = await closeOnChain(
+        client,
+        escrowContract,
+        {
+          channelId,
+          cumulativeAmount: closeAmount,
+          signature,
+        },
+        undefined,
+        accounts[0],
+      )
 
       expect(txHash).toBeDefined()
+      await waitForTransactionReceipt(client, { hash: txHash })
       const channel = await getOnChainChannel(client, escrowContract, channelId)
       expect(channel.finalized).toBe(true)
     })

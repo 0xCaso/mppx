@@ -640,6 +640,7 @@ async function handleTopUp(
     serializedTransaction: payload.transaction,
     escrowContract: methodDetails.escrowContract,
     channelId: payload.channelId,
+    currency: challenge.request.currency as Address,
     declaredDeposit,
     previousDeposit: channel.deposit,
     feePayer,

@@ -10,7 +10,7 @@
     "deps:ci": "pnpx actions-up",
     "dev": "zile dev",
     "dev:example": "node scripts/dev:example.ts",
-    "mppx": "node --import tsx src/cli.ts",
+    "mppx": "node --import tsx src/bin.ts",
     "check:compat": "eslint -c eslint.compat.config.mjs 'src/**/*.ts' --ignore-pattern '**/*.test.ts' --ignore-pattern '**/*.test-d.ts'",
     "test": "vitest"
   },
@@ -164,7 +164,7 @@
   "dependencies": {
     "@remix-run/fetch-proxy": "^0.7.1",
     "@remix-run/node-fetch-server": "^0.13.0",
-    "cac": "^6.7.14",
+    "incur": "^0.3.1",
     "ox": "^0.12.4",
     "zod": "^4.3.6"
   },
@@ -172,7 +172,7 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "mppx": "./dist/cli.js",
-    "mppx.src": "./src/cli.ts"
+    "mppx": "./dist/bin.js",
+    "mppx.src": "./src/bin.ts"
   }
 }

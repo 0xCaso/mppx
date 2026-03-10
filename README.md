@@ -59,6 +59,7 @@ const res = await fetch('https://mpp.dev/api/ping/paid')
 | Example | Description |
 |---------|-------------|
 | [charge](./examples/charge/) | Payment-gated photo generation API |
+| [charge-wagmi](./examples/charge-wagmi/) | Payment-gated charge with Wagmi + React |
 | [session/multi-fetch](./examples/session/multi-fetch/) | Multiple paid requests over a single payment channel |
 | [session/sse](./examples/session/sse/) | Pay-per-token LLM streaming with SSE |
 | [stripe](./examples/stripe/) | Stripe SPT charge with automatic client |

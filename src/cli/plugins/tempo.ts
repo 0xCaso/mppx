@@ -34,6 +34,7 @@ export function tempo() {
           cumulativeAmount: bigint
           escrowContract: Address
           chainId: number
+          action?: 'voucher' | 'close'
         }): Promise<string>
         source: string
       }
@@ -183,11 +184,17 @@ export function tempo() {
 
       // Store session support for use in lifecycle hooks
       _session = {
-        async signVoucher({ channelId, cumulativeAmount, escrowContract, chainId }) {
+        async signVoucher({
+          channelId,
+          cumulativeAmount,
+          escrowContract,
+          chainId,
+          action = 'voucher',
+        }) {
           return Credential.serialize({
             challenge,
             payload: {
-              action: 'voucher',
+              action,
               channelId,
               cumulativeAmount: cumulativeAmount.toString(),
               signature: await signVoucher(
@@ -254,32 +261,17 @@ export function tempo() {
         }
       }
 
-      // Handle non-SSE session response (server returned non-streaming)
-      let credentialResponse = response
+      // Handle non-SSE session response (server returned non-streaming).
+      // The open credential already paid for this unit — no follow-up
+      // voucher is needed. Just record the cumulativeAmount so the
+      // channel close uses the correct value.
+      const credentialResponse = response
       if (
         credentialResponse.ok &&
         !credentialResponse.headers.get('Content-Type')?.includes('text/event-stream')
       ) {
         if (parsed.payload.action === 'open' && 'cumulativeAmount' in parsed.payload) {
-          const tickAmount = BigInt(challengeRequest.amount as string)
-          cumulativeAmount = BigInt(parsed.payload.cumulativeAmount) + tickAmount
-
-          if (escrowContract) {
-            const voucherCred = await _session.signVoucher({
-              channelId,
-              cumulativeAmount,
-              escrowContract,
-              chainId,
-            })
-            credentialResponse = await globalThis.fetch(fetchUrl, {
-              ...fetchInit,
-              headers: {
-                ...(fetchInit.headers as Record<string, string>),
-                Accept: 'text/event-stream',
-                Authorization: voucherCred,
-              },
-            })
-          }
+          cumulativeAmount = BigInt(parsed.payload.cumulativeAmount)
         }
       }
 
@@ -598,6 +590,7 @@ async function closeChannel(opts: {
       cumulativeAmount: bigint
       escrowContract: Address
       chainId: number
+      action?: 'voucher' | 'close'
     }): Promise<string>
   }
   info: (msg: string) => void
@@ -612,6 +605,7 @@ async function closeChannel(opts: {
     cumulativeAmount: opts.cumulativeAmount,
     escrowContract: opts.escrowContract,
     chainId: opts.chainId,
+    action: 'close',
   })
   const closeRes = await globalThis.fetch(opts.fetchUrl, {
     ...opts.fetchInit,

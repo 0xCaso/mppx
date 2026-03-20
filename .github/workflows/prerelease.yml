@@ -3,6 +3,8 @@ on: [push, pull_request]
 
 jobs:
   build:
+    name: Build
+    if: github.repository == 'wevm/mppx'
     runs-on: ubuntu-latest
 
     steps:

@@ -226,6 +226,7 @@ describe('serve', () => {
       highestVoucher: null,
       spent: 0n,
       units: 0,
+      closeRequestedAt: 0n,
       finalized: false,
       createdAt: new Date().toISOString(),
     }))

@@ -27,6 +27,8 @@ export interface State {
   escrowContract: Address
   /** Unique identifier for this payment channel. */
   channelId: Hex
+  /** On-chain timestamp when a force-close was requested (0n if not requested). */
+  closeRequestedAt: bigint
   /** ISO 8601 timestamp when the channel was created. */
   createdAt: string
   /** Current on-chain deposit in the escrow contract. */
@@ -107,6 +109,7 @@ export async function deductFromChannel(
   const channel = await store.updateChannel(channelId, (current) => {
     deducted = false
     if (!current) return null
+    if (current.finalized) return current
     if (current.highestVoucherAmount - current.spent >= amount) {
       deducted = true
       return { ...current, spent: current.spent + amount, units: current.units + 1 }
@@ -165,9 +168,9 @@ export function fromStore(store: Store.Store): ChannelStore {
     )
 
     try {
-      const current = await store.get<State | null>(channelId)
+      const current = (await store.get(channelId)) as State | null
       const next = fn(current)
-      if (next) await store.put(channelId, next)
+      if (next) await store.put(channelId, next as never)
       else await store.delete(channelId)
       return next
     } finally {
@@ -178,7 +181,7 @@ export function fromStore(store: Store.Store): ChannelStore {
 
   const cs: ChannelStore = {
     async getChannel(channelId) {
-      return store.get<State | null>(channelId)
+      return (await store.get(channelId)) as State | null
     },
     async updateChannel(channelId, fn) {
       const result = await update(channelId, fn)

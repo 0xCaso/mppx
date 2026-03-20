@@ -22,6 +22,7 @@ function makeChannel(overrides?: Partial<ChannelStore.State>): ChannelStore.Stat
     highestVoucher: null,
     spent: 0n,
     units: 0,
+    closeRequestedAt: 0n,
     finalized: false,
     createdAt: '2025-01-01T00:00:00.000Z',
     ...overrides,
@@ -237,6 +238,15 @@ describe('ChannelStore.deductFromChannel', () => {
     await expect(ChannelStore.deductFromChannel(cs, channelId, 1_000_000n)).rejects.toThrow(
       'channel not found',
     )
+  })
+
+  test('rejects deduction when channel is finalized', async () => {
+    const cs = ChannelStore.fromStore(Store.memory())
+    await seedChannel(cs, { highestVoucherAmount: 10_000_000n, spent: 0n, finalized: true })
+
+    const result = await ChannelStore.deductFromChannel(cs, channelId, 1_000_000n)
+    expect(result.ok).toBe(false)
+    expect(result.channel.spent).toBe(0n)
   })
 
   test('exact balance succeeds', async () => {

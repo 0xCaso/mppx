@@ -1,5 +1,11 @@
 # mppx
 
+## 0.4.8
+
+### Patch Changes
+
+- 99920d0: Updated validation.
+
 ## 0.4.7
 
 ### Patch Changes

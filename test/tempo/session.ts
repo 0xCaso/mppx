@@ -119,6 +119,24 @@ export async function closeChannelOnChain(params: {
   return { txHash: txReceipt.transactionHash }
 }
 
+export async function requestCloseChannel(params: {
+  escrow: Address
+  payer: Account
+  channelId: Hex
+}): Promise<{ txHash: Hex }> {
+  const { escrow, payer, channelId } = params
+
+  const txReceipt = await writeContractSync(client, {
+    account: payer,
+    address: escrow,
+    abi: escrowAbi,
+    functionName: 'requestClose',
+    args: [channelId],
+  })
+
+  return { txHash: txReceipt.transactionHash }
+}
+
 export async function signOpenChannel(params: {
   escrow: Address
   payer: Account

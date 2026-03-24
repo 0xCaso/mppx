@@ -938,13 +938,10 @@ describe('Session', () => {
         // drain
       }
 
-      const calledHeaders = (mockFetch.mock.calls[0]![1] as RequestInit).headers as Record<
-        string,
-        string
-      >
-      expect(calledHeaders['content-type']).toBe('application/json')
-      expect(calledHeaders['x-custom']).toBe('value')
-      expect(calledHeaders.Accept).toBe('text/event-stream')
+      const calledHeaders = new Headers((mockFetch.mock.calls[0]![1] as RequestInit).headers)
+      expect(calledHeaders.get('content-type')).toBe('application/json')
+      expect(calledHeaders.get('x-custom')).toBe('value')
+      expect(calledHeaders.get('accept')).toBe('text/event-stream')
     })
   })
 
@@ -1083,15 +1080,6 @@ describe('Session', () => {
             cumulativeAmount: 5_000_000n,
             spent: 3_000_000n,
           },
-        })
-
-        onChannelUpdate?.({
-          channelId,
-          salt: '0x01' as Hex,
-          cumulativeAmount: 5_000_000n,
-          escrowContract: '0x0000000000000000000000000000000000000001' as Address,
-          chainId: 4217,
-          opened: true,
         })
 
         await s.fetch('https://api.example.com/data')

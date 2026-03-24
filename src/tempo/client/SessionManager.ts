@@ -217,12 +217,12 @@ export function sessionManager(parameters: sessionManager.Parameters): SessionMa
 
     async sse(input, init) {
       const { onReceipt, signal, ...fetchInit } = init ?? {}
+      const headers = new Headers(fetchInit.headers)
+      headers.set('Accept', 'text/event-stream')
+
       const sseInit = {
         ...fetchInit,
-        headers: {
-          ...Fetch.normalizeHeaders(fetchInit.headers),
-          Accept: 'text/event-stream',
-        },
+        headers,
         ...(signal ? { signal } : {}),
       }
 
